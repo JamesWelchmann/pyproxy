@@ -17,7 +17,7 @@ See [https://www.rust-lang.org/tools/install](here) for instructions on obtainin
 
 Once obtained, simple run the following the root directory of this project.
 
-## Building (Linux) - Client + Server
+### Building (Linux) - Client + Server
 
 ```bash
   $ cargo build --release
@@ -41,7 +41,7 @@ libpyproxy_client.so is a Python extension which can be imported into Python as 
   >>>
 ```
 
-## Building (OS/X and Windows) - Client
+### Building (OS/X and Windows) - Client
 
 The server is aggressively Linux specific so only the client is available on other platforms.
 (NOTE: The Author believes this to be the case, he has not actually tested it).
@@ -61,3 +61,16 @@ or (Windows):
 
 ```
   cp target/release/libpyproxy_client.dll libpyproxy_client.pyd
+```
+
+## Documentation
+
+Python Sphinx is required to build the documentation.
+
+Following this:
+
+```bash
+  $ sphinx-build -b html doc/source doc/html
+```
+
+The documentation should now be avaliable at `doc/html/index.html`.
