@@ -21,6 +21,9 @@ impl From<errors::Error> for PyErr {
             Error::ServerDidntSendHello => {
                 PyRuntimeError::new_err("server didn't send back hello message")
             }
+            Error::MissingMainStream => {
+                PyRuntimeError::new_err("created PyProxyClient without mainstream")
+            }
             Error::Protocol(proto_err) => PyRuntimeError::new_err(format!("{:?}", proto_err)),
         }
     }

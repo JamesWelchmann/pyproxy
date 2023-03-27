@@ -12,9 +12,14 @@ fn main() -> Result<()> {
     let cfg = runmaster::config::from_env().map(Rc::new)?;
 
     // Open Tcp Listener
-    let listener = fatal_io_err(
-        "master couldn't bind tcp listener",
+    let main_listener = fatal_io_err(
+        "master couldn't bind tcp main listener",
         TcpListener::bind(cfg.bind_addr),
+    )?;
+
+    let output_listener = fatal_io_err(
+        "master couldn't bind tcp output listener",
+        TcpListener::bind(cfg.output_addr),
     )?;
 
     let pid = unsafe { libc::getpid() };
@@ -51,5 +56,5 @@ fn main() -> Result<()> {
         });
     }
 
-    run_forever(cfg, listener, unix_listener, workers)
+    run_forever(cfg, main_listener, output_listener, unix_listener, workers)
 }

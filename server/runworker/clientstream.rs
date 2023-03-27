@@ -1,4 +1,5 @@
-use std::io::{self, Write};
+use std::collections::VecDeque;
+use std::io::{self, Read, Write};
 
 use mio::event::Source;
 use mio::net::TcpStream;
@@ -7,6 +8,8 @@ use rand::Rng;
 
 use crate::config::Config;
 
+use super::errors::{io_error, Error, Result};
+
 pub struct ClientStream {
     stream: TcpStream,
     outbuffer: Vec<u8>,
@@ -14,6 +17,7 @@ pub struct ClientStream {
     interest: Interest,
     session_id: String,
     seq_num: u32,
+    req_msgs: VecDeque<protocol::RequestMessage>,
 }
 
 impl ClientStream {
@@ -61,6 +65,7 @@ impl ClientStream {
             interest,
             session_id: hex::encode(&session_id),
             seq_num: 1,
+            req_msgs: VecDeque::with_capacity(64),
         })
     }
 
@@ -83,6 +88,53 @@ impl ClientStream {
         self.outbuffer.truncate(bytes_remaining);
 
         Ok(())
+    }
+
+    pub fn read(&mut self, buf: &mut [u8]) -> Result<()> {
+        let bytes_read = self
+            .stream
+            .read(buf)
+            .map_err(|e| io_error("failed to read from tcp stream", e))?;
+
+        if bytes_read == 0 {
+            return Err(Error::StreamClosed);
+        }
+        self.inbuffer.extend(&buf[..bytes_read]);
+
+        while self.inbuffer.len() >= protocol::REQUEST_HEADER_SIZE {
+            let mut header = [0; protocol::REQUEST_HEADER_SIZE];
+            for (h, b) in header.iter_mut().zip(self.inbuffer.iter()) {
+                *h = *b;
+            }
+
+            let req_header = protocol::RequestMessageHeader::from_buf(header)?;
+
+            // Do we have enough bytes?
+            if req_header.msg_len() + protocol::REQUEST_HEADER_SIZE < self.inbuffer.len() {
+                break;
+            }
+
+            let msg_end = req_header.msg_len() + protocol::REQUEST_HEADER_SIZE;
+
+            let msg_body = &self.inbuffer[(protocol::REQUEST_HEADER_SIZE..msg_end)];
+            let msg = protocol::read_req(req_header, msg_body)?;
+            self.req_msgs.push_back(msg);
+
+            let bytes_remaining = self.inbuffer.len() - msg_end;
+            for n in 0..bytes_remaining {
+                self.inbuffer[n] = self.inbuffer[n + msg_end];
+            }
+            self.inbuffer.truncate(bytes_remaining);
+        }
+        Ok(())
+    }
+
+    pub fn has_out_data(&self) -> bool {
+        !self.outbuffer.is_empty()
+    }
+
+    pub fn next_req_msg(&mut self) -> Option<protocol::RequestMessage> {
+        self.req_msgs.pop_front()
     }
 }
 

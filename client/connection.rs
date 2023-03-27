@@ -29,7 +29,7 @@ pub struct TlsConnection {
 
 #[pyclass]
 pub struct PyConnection {
-    pub inner: Arc<Mutex<dyn Connection>>,
+    pub inner: Option<Box<dyn Connection>>,
     pub session_id: String,
     pub stream_token: String,
     pub output_addr: String,
@@ -37,7 +37,6 @@ pub struct PyConnection {
 
 #[pyfunction]
 pub fn new_simple_connection(addr: &str) -> Result<PyConnection> {
-    println!("called new simple connection {}", addr);
     let mut stream = StdTcpStream::connect(addr)?;
 
     // Send a client hello to server
@@ -47,6 +46,7 @@ pub fn new_simple_connection(addr: &str) -> Result<PyConnection> {
     // Send client hello to server
     stream.write_all(&header)?;
     stream.write_all(&payload)?;
+    println!("send client hello");
 
     // Block - waiting for server response
     let mut header_buf = [0; protocol::RESPONSE_HEADER_SIZE];
@@ -60,14 +60,13 @@ pub fn new_simple_connection(addr: &str) -> Result<PyConnection> {
     // Okay read the response payload
     let mut buffer = vec![0; resp_header.msg_len()];
     stream.read_exact(&mut buffer)?;
+    println!("got server hello");
     let server_hello: ResponseClientHello = protocol::read_msg(&buffer)?;
 
     stream.set_nonblocking(true)?;
 
-    println!("output_addr = {}", server_hello.output_addr);
-
     Ok(PyConnection {
-        inner: Arc::new(Mutex::new(SimpleConnection {
+        inner: Some(Box::new(SimpleConnection {
             stream: MioTcpStream::from_std(stream),
         })),
         session_id: server_hello.session_id,

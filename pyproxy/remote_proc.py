@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import pickle
 
 from pyproxy_client import PyProxyClient, new_simple_connection
 
@@ -12,23 +13,22 @@ class PyProxySession:
 
         # block - waitint for client conenction
         # raise exception if we fail
-        print("calling new_simple_connection")
         self._client_conn = new_simple_connection(addr)
-        print("called new_simple_connection")
 
     def __enter__(self):
-        print("called __enter__")
-        self._client = PyProxySession(self._client_conn)
-        print("created PyProxySession")
-        return RemoteProcess(self)
+        return self.connect()
+
+    def connect(self):
+        client = PyProxyClient(self._client_conn)
+        return RemoteProcess(client)
 
     def __exit__(self, exc_typ, exc_val, trcb):
         self._client.disconnect()
 
 
 class RemoteProcess:
-    def __init__(self, remote_proc):
-        self._client = remote_proc._client
+    def __init__(self, client):
+        self._client = client
 
     def output(self, fut=None):
         """
@@ -87,6 +87,9 @@ class RemoteProcess:
 
         locs = locs or {}
         globs = globs or {}
+
+        locs = pickle.dumps(locs)
+        globs = pickle.dumps(globs)
 
         if isinstance(code, str):
             inner_fut = self._client.eval_str(id, code, locs, globs)

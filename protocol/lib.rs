@@ -1,5 +1,9 @@
 mod errors;
 pub use errors::{Error, Result};
+mod mainstream;
+pub use mainstream::{CodePickle, CodeString};
+mod outputstream;
+pub use outputstream::CodeExec;
 
 pub const VERSION: u8 = 0;
 pub const REQUEST_HEADER_SIZE: usize = 8;
@@ -21,6 +25,30 @@ pub enum MessageType {
     Hello,
     CodeString,
     CodePickle,
+}
+
+#[derive(Debug)]
+pub enum RequestMessage {
+    Hello(RequestClientHello),
+    CodeString(CodeString),
+    CodePickle(CodePickle),
+}
+
+pub fn new_req<T: serde::Serialize>(msg_type: MessageType, msg_sub_type: u8, msg: T) -> Vec<u8> {
+    let payload = bincode::serialize(&msg).expect("couldn't serialize request message");
+    let header = RequestMessageHeader::new(msg_type, msg_sub_type, payload.len());
+    let mut msg = Vec::with_capacity(payload.len() + REQUEST_HEADER_SIZE);
+    msg.extend(&header.into_buf());
+    msg.extend(&payload);
+    msg
+}
+
+pub fn read_req(header: RequestMessageHeader, body: &[u8]) -> Result<RequestMessage> {
+    match header.msg_type {
+        MessageType::Hello => Ok(RequestMessage::Hello(RequestClientHello {})),
+        MessageType::CodeString => Ok(RequestMessage::CodeString(bincode::deserialize(body)?)),
+        MessageType::CodePickle => Ok(RequestMessage::CodePickle(bincode::deserialize(body)?)),
+    }
 }
 
 impl MessageType {
@@ -157,7 +185,7 @@ pub struct ServerPushHeader {
     pub msg_type: u8,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct RequestClientHello {}
 
 impl RequestClientHello {

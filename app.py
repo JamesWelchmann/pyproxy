@@ -2,13 +2,23 @@
 # -*- coding: utf-8 -*-
 import sys
 from functools import partial
+from time import sleep
 
 eprint = partial(print, file=sys.stderr)
 
 
 from pyproxy import PyProxySession
 
+session = PyProxySession()
+print("created session")
+remote_proc = session.connect()
+print("created remote proc")
+remote_proc.eval(open("my_code.py").read())
 
+sleep(10)
+
+
+"""
 print("calling PyProxySession()")
 with PyProxySession() as remote_proc:
     fut = remote_proc.eval('print("hello world"); 2 + 2')
@@ -22,3 +32,4 @@ with PyProxySession() as remote_proc:
 
     # future done
     print("output = ", fut.wait())
+"""
