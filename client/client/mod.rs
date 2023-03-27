@@ -20,22 +20,24 @@ const OUTPUT_STREAM_TK: Token = Token(1);
 const RO: Interest = Interest::READABLE;
 
 #[pyclass]
-pub struct MysticClient {
+pub struct PyProxyClient {
     handle: thread::JoinHandle<Result<()>>,
 }
 
 #[pymethods]
-impl MysticClient {
+impl PyProxyClient {
     #[new]
     #[pyo3(signature=(conn, name=None))]
     fn new(conn: &PyConnection, name: Option<&str>) -> io::Result<Self> {
         // Spawn background thread
-        let name = name.unwrap_or("mytic-client");
+        let name = name.unwrap_or("pyproxy-client");
 
         let stream = conn.inner.clone();
         let session_id = conn.session_id.to_owned();
         let stream_token = conn.stream_token.to_owned();
         let output_addr = conn.output_addr.to_owned();
+
+        println!("spawning thread");
 
         let handle = thread::Builder::new()
             .name(name.to_owned())

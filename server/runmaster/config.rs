@@ -53,7 +53,7 @@ pub fn from_env() -> Result<Config, Error> {
 
     for (key, val) in env::vars() {
         match key.as_ref() {
-            "MYSTIC_BIND_ADDR" => match val.parse() {
+            "PYPROXY_BIND_ADDR" => match val.parse() {
                 Err(e) => {
                     errors.push(EnvError {
                         env_var: key.clone(),
@@ -65,7 +65,7 @@ pub fn from_env() -> Result<Config, Error> {
                     slf.bind_addr = bind_addr;
                 }
             },
-            "MYSTIC_OUTPUT_ADDR" => match val.parse() {
+            "PYPROXY_OUTPUT_ADDR" => match val.parse() {
                 Err(e) => {
                     errors.push(EnvError {
                         env_var: key.clone(),
@@ -78,7 +78,7 @@ pub fn from_env() -> Result<Config, Error> {
                 }
             },
 
-            "MYSTIC_NUM_WORKERS" => match val.parse() {
+            "PYPROXY_NUM_WORKERS" => match val.parse() {
                 Err(e) => {
                     errors.push(EnvError {
                         env_var: key.clone(),

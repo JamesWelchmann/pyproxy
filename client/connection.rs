@@ -37,6 +37,7 @@ pub struct PyConnection {
 
 #[pyfunction]
 pub fn new_simple_connection(addr: &str) -> Result<PyConnection> {
+    println!("called new simple connection {}", addr);
     let mut stream = StdTcpStream::connect(addr)?;
 
     // Send a client hello to server
@@ -62,6 +63,8 @@ pub fn new_simple_connection(addr: &str) -> Result<PyConnection> {
     let server_hello: ResponseClientHello = protocol::read_msg(&buffer)?;
 
     stream.set_nonblocking(true)?;
+
+    println!("output_addr = {}", server_hello.output_addr);
 
     Ok(PyConnection {
         inner: Arc::new(Mutex::new(SimpleConnection {

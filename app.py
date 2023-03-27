@@ -6,10 +6,11 @@ from functools import partial
 eprint = partial(print, file=sys.stderr)
 
 
-from mystic import RemoteProcess
+from pyproxy import PyProxySession
 
 
-with RemoteProcess() as remote_proc:
+print("calling PyProxySession()")
+with PyProxySession() as remote_proc:
     fut = remote_proc.eval('print("hello world"); 2 + 2')
     for (fd, line) in remote_proc.output(fut):
         if fd == 1:

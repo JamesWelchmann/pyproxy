@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from mystic_client import MysticClient, new_simple_connection
+from pyproxy_client import PyProxyClient, new_simple_connection
 
 from .future import Future, future_id
 
 
-class RemoteProcess:
+class PyProxySession:
     def __init__(self, addr="localhost:9000"):
         self._addr = addr
 
@@ -14,16 +14,19 @@ class RemoteProcess:
         # raise exception if we fail
         print("calling new_simple_connection")
         self._client_conn = new_simple_connection(addr)
+        print("called new_simple_connection")
 
     def __enter__(self):
-        self._client = MysticClient(conn=self._client_conn)
-        return RunningProcess(self)
+        print("called __enter__")
+        self._client = PyProxySession(self._client_conn)
+        print("created PyProxySession")
+        return RemoteProcess(self)
 
     def __exit__(self, exc_typ, exc_val, trcb):
         self._client.disconnect()
 
 
-class RunningProcess:
+class RemoteProcess:
     def __init__(self, remote_proc):
         self._client = remote_proc._client
 

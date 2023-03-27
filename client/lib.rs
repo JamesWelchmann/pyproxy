@@ -8,8 +8,8 @@ pub use connection::new_simple_connection;
 use errors::Error;
 
 #[pymodule]
-fn mystic_client(_: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<client::MysticClient>()?;
+fn pyproxy_client(_: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<client::PyProxyClient>()?;
     m.add_function(wrap_pyfunction!(new_simple_connection, m)?)?;
     Ok(())
 }

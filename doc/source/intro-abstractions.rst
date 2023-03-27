@@ -1,6 +1,14 @@
 Abstractions - PyProxySession and PyProxyAtom
 -------------------------------------------------
 
+A client application can open a pool of **TCP Streams**,
+then send and receive **data** over said **TCP Streams**.
+
+A client application can open a pool of **PyProxySession**,
+then send **PyProxyAtom** and receive **PyProxyOutput** over said **PyProxySession**.
+
+We continue our discussion of this concepts below.
+
 Existing Technologies - Terminology
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

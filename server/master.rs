@@ -24,7 +24,7 @@ fn main() -> Result<()> {
         "master failed to create run directory for unix socket",
         fs::create_dir_all(&sock_addr),
     )?;
-    sock_addr.push("mystic.sock");
+    sock_addr.push("pyproxy.sock");
 
     // Open UNIX Socket
     let unix_listener = fatal_io_err(

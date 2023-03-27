@@ -34,7 +34,7 @@ pub fn from_env() -> Result<Config, Error> {
 
     for (key, val) in env::vars() {
         match key.as_ref() {
-            "MYSTIC_OUTPUT_ADDR" => match val.parse() {
+            "PYPROXY_OUTPUT_ADDR" => match val.parse() {
                 Err(err) => errors.push(EnvError {
                     env_var: key.to_owned(),
                     env_val: val.to_owned(),
