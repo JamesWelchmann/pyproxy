@@ -14,7 +14,7 @@
     <script src="_static/sphinx_highlight.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Abstractions - PyProxySession and PyProxyAtom" href="intro-abstractions.html" />
+    <link rel="next" title="Walkthrough" href="walkthrough.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -33,25 +33,73 @@
             
   <section id="pyproxy">
 <h1>PyProxy<a class="headerlink" href="#pyproxy" title="Permalink to this heading">¶</a></h1>
-<p>PyProxy is a server and client library for remotely executing Python code.
-It has an experimental architecture.
-The author is curious how well these abstractions play out at higher levels.</p>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<p>NOTE: This project is very new. Please do not run it in a production environment.
-Currently the server will crash on certain messages and there is no TLS support.</p>
+<p>PyProxy is a server and a client library for remotely executing Python code.
+It is very new, so please don’t run this in production anywhere!</p>
+<p>And here is PyProxy Hello World.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">sys</span>
+<span class="c1"># import client library</span>
+<span class="kn">from</span> <span class="nn">pyproxy</span> <span class="kn">import</span> <span class="n">PyProxySession</span>
+
+<span class="c1"># connect to the server</span>
+<span class="k">with</span> <span class="n">PyProxySession</span><span class="p">(</span><span class="n">addr</span><span class="o">=</span><span class="s2">&quot;localhost:9000&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">remote_process</span><span class="p">:</span>
+
+    <span class="c1"># send our code to the server for remote exectuon</span>
+    <span class="c1"># return a future</span>
+    <span class="n">future</span> <span class="o">=</span> <span class="n">remote_process</span><span class="o">.</span><span class="n">eval</span><span class="p">(</span><span class="s1">&#39;print(hello)&#39;</span><span class="p">,</span> <span class="n">locs</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;hello&#39;</span><span class="p">:</span> <span class="s1">&#39;hello world&#39;</span><span class="p">})</span>
+
+    <span class="c1"># block on the future, gathering all stdout and stderr</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span> <span class="ow">in</span> <span class="n">remote_process</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">future</span><span class="o">=</span><span class="n">future</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">fd</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># print to stdout</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+       <span class="k">elif</span> <span class="n">fd</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="c1"># print to stderr</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+       <span class="k">else</span><span class="p">:</span>
+           <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unrecognised file descriptor in output </span><span class="si">{</span><span class="n">fd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+   <span class="c1"># the future is now complete.</span>
+   <span class="c1"># the Python builtin function print returns None so this</span>
+   <span class="c1"># should be the return value from the above eval statement</span>
+   <span class="k">assert</span> <span class="n">future</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;print function did not return None&quot;</span>
+</pre></div>
 </div>
-<section id="introduction">
-<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading">¶</a></h2>
+<section id="contents">
+<h2>Contents<a class="headerlink" href="#contents" title="Permalink to this heading">¶</a></h2>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="intro-abstractions.html">Abstractions - PyProxySession and PyProxyAtom</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="intro-abstractions.html#existing-technologies-terminology">Existing Technologies - Terminology</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro-abstractions.html#existing-architectures">Existing Architectures</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro-abstractions.html#pyproxysession-abstraction">PyProxySession - Abstraction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro-abstractions.html#pyproxysession-implementation">PyProxySession - Implementation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro-abstractions.html#pyproxyatom-abstraction">PyProxyAtom - Abstraction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro-abstractions.html#pyproxyatom-implementation">PyProxyAtom - Implementation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="walkthrough.html">Walkthrough</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#pyproxysession">1. PyProxySession</a></li>
+<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#connect">2. Connect</a></li>
+<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#eval">3. Eval</a></li>
+<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#waiting-on-the-future">4. Waiting on the Future</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="protocol.html">Protocol</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Server Configuration</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html#pyproxy-bind-addr">PYPROXY_BIND_ADDR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html#pyproxy-output-addr">PYPROXY_OUTPUT_ADDR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html#pyproxy-num-workers">PYPROXY_NUM_WORKERS</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api-docs.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api-docs.html#pyproxy.Future"><code class="docutils literal notranslate"><span class="pre">Future</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api-docs.html#pyproxy.Future.is_done"><code class="docutils literal notranslate"><span class="pre">Future.is_done()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api-docs.html#pyproxy.Future.wait"><code class="docutils literal notranslate"><span class="pre">Future.wait()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api-docs.html#pyproxy.Future.wait_no_except"><code class="docutils literal notranslate"><span class="pre">Future.wait_no_except()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api-docs.html#pyproxy.PyProxySession"><code class="docutils literal notranslate"><span class="pre">PyProxySession</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api-docs.html#pyproxy.PyProxySession.connect"><code class="docutils literal notranslate"><span class="pre">PyProxySession.connect()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api-docs.html#pyproxy.PyProxySession.session_id"><code class="docutils literal notranslate"><span class="pre">PyProxySession.session_id</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api-docs.html#pyproxy.RemoteProcess"><code class="docutils literal notranslate"><span class="pre">RemoteProcess</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api-docs.html#pyproxy.RemoteProcess.eval"><code class="docutils literal notranslate"><span class="pre">RemoteProcess.eval()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api-docs.html#pyproxy.RemoteProcess.output"><code class="docutils literal notranslate"><span class="pre">RemoteProcess.output()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api-docs.html#pyproxy.RemoteProcess.stdin"><code class="docutils literal notranslate"><span class="pre">RemoteProcess.stdin()</span></code></a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -77,14 +125,17 @@ Currently the server will crash on certain messages and there is no TLS support.
 
 <h3>Navigation</h3>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="intro-abstractions.html">Abstractions - PyProxySession and PyProxyAtom</a></li>
+<li class="toctree-l1"><a class="reference internal" href="walkthrough.html">Walkthrough</a></li>
+<li class="toctree-l1"><a class="reference internal" href="protocol.html">Protocol</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Server Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api-docs.html">API Reference</a></li>
 </ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="#">Documentation overview</a><ul>
-      <li>Next: <a href="intro-abstractions.html" title="next chapter">Abstractions - PyProxySession and PyProxyAtom</a></li>
+      <li>Next: <a href="walkthrough.html" title="next chapter">Walkthrough</a></li>
   </ul></li>
 </ul>
 </div>

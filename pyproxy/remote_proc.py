@@ -9,6 +9,10 @@ from .future import Future, future_id
 
 
 class PyProxySession:
+    """
+    PyProxySession is a class for establishing the mainstream
+    with the PyProxy Server.
+    """
     def __init__(self, addr="localhost:9000"):
         self._addr = addr
 
@@ -18,12 +22,21 @@ class PyProxySession:
 
     @property
     def session_id(self):
+        """
+        session_id, as sent in the server-hello message
+        """
         return self._client_conn.session_id
 
     def __enter__(self):
+        """
+        """
         return self.connect()
 
     def connect(self):
+        """
+        connect will spawn a background thread
+        we return a RemoteProcess object
+        """
         client = PyProxyClient(self._client_conn)
         return RemoteProcess(client)
 
@@ -32,6 +45,10 @@ class PyProxySession:
 
 
 class RemoteProcess:
+    """
+    RemoteProcess is our object wrapping a single "remote python process",
+    we can send code to execute and interact with stdin/stdout and stderr.
+    """
     def __init__(self, client):
         self._client = client
 
@@ -58,15 +75,11 @@ class RemoteProcess:
 
     def stdin(self, lines):
         """
-        send lines to stdin on remote process
-        NOTE: lines *MUST* be a list, with each element being bytes
-        otherwise we raise TypeError
+        stdin will send lines to stdin on the remote process.
+        Currently we raise NotImplementedError
         """
 
-        lines = lines or []
-        id = future_id()
-        inner_fut = self._client.stdin(id, lines)
-        return Future(id, inner_fut)
+        raise NotImplementedError("stdin not implemented")
 
 
     def eval(self, code, locs=None, globs=None):

@@ -1,0 +1,209 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>API Reference &#8212; PyProxy 0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Server Configuration" href="configuration.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-pyproxy">
+<span id="api-reference"></span><h1>API Reference<a class="headerlink" href="#module-pyproxy" title="Permalink to this heading">¶</a></h1>
+<p>pyproxy is the client library for the PyProxy Server</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyproxy.Future">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyproxy.</span></span><span class="sig-name descname"><span class="pre">Future</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inner_fut</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.Future" title="Permalink to this definition">¶</a></dt>
+<dd><p>PyProxy Client Future</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyproxy.Future.is_done">
+<span class="sig-name descname"><span class="pre">is_done</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.Future.is_done" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if done, False otherwise
+this function is exception safe</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyproxy.Future.wait">
+<span class="sig-name descname"><span class="pre">wait</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.Future.wait" title="Permalink to this definition">¶</a></dt>
+<dd><p>wait for a future to complete
+this will also raise any exception
+the future wishes to raise</p>
+<p>We can call wait as many times as we like
+it will reliably produce the same behaviour
+once done</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyproxy.Future.wait_no_except">
+<span class="sig-name descname"><span class="pre">wait_no_except</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.Future.wait_no_except" title="Permalink to this definition">¶</a></dt>
+<dd><p>wait_no_except is the same as wait
+except that it will return an exception,
+not raise it</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyproxy.PyProxySession">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyproxy.</span></span><span class="sig-name descname"><span class="pre">PyProxySession</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">addr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost:9000'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.PyProxySession" title="Permalink to this definition">¶</a></dt>
+<dd><p>PyProxySession is a class for establishing the mainstream
+with the PyProxy Server.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyproxy.PyProxySession.connect">
+<span class="sig-name descname"><span class="pre">connect</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.PyProxySession.connect" title="Permalink to this definition">¶</a></dt>
+<dd><p>connect will spawn a background thread
+we return a RemoteProcess object</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyproxy.PyProxySession.session_id">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">session_id</span></span><a class="headerlink" href="#pyproxy.PyProxySession.session_id" title="Permalink to this definition">¶</a></dt>
+<dd><p>session_id, as sent in the server-hello message</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyproxy.RemoteProcess">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyproxy.</span></span><span class="sig-name descname"><span class="pre">RemoteProcess</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">client</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.RemoteProcess" title="Permalink to this definition">¶</a></dt>
+<dd><p>RemoteProcess is our object wrapping a single “remote python process”,
+we can send code to execute and interact with stdin/stdout and stderr.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyproxy.RemoteProcess.eval">
+<span class="sig-name descname"><span class="pre">eval</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">code</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">locs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">globs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.RemoteProcess.eval" title="Permalink to this definition">¶</a></dt>
+<dd><p>eval will execute a code object on the remote process
+code may be a str or a code object</p>
+<p>if code_object is a string then we send to the server as a String
+if code_object is a code_object then we attempt to pickle</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyproxy.RemoteProcess.output">
+<span class="sig-name descname"><span class="pre">output</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.RemoteProcess.output" title="Permalink to this definition">¶</a></dt>
+<dd><p>output retrieves stdout and stderr line from the remote process</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="pyproxy.RemoteProcess.stdin">
+<span class="sig-name descname"><span class="pre">stdin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lines</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.RemoteProcess.stdin" title="Permalink to this definition">¶</a></dt>
+<dd><p>stdin will send lines to stdin on the remote process.
+Currently we raise NotImplementedError</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">PyProxy</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="walkthrough.html">Walkthrough</a></li>
+<li class="toctree-l1"><a class="reference internal" href="protocol.html">Protocol</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Server Configuration</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#pyproxy.Future"><code class="docutils literal notranslate"><span class="pre">Future</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pyproxy.Future.is_done"><code class="docutils literal notranslate"><span class="pre">Future.is_done()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pyproxy.Future.wait"><code class="docutils literal notranslate"><span class="pre">Future.wait()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pyproxy.Future.wait_no_except"><code class="docutils literal notranslate"><span class="pre">Future.wait_no_except()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxySession"><code class="docutils literal notranslate"><span class="pre">PyProxySession</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pyproxy.PyProxySession.connect"><code class="docutils literal notranslate"><span class="pre">PyProxySession.connect()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pyproxy.PyProxySession.session_id"><code class="docutils literal notranslate"><span class="pre">PyProxySession.session_id</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#pyproxy.RemoteProcess"><code class="docutils literal notranslate"><span class="pre">RemoteProcess</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pyproxy.RemoteProcess.eval"><code class="docutils literal notranslate"><span class="pre">RemoteProcess.eval()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pyproxy.RemoteProcess.output"><code class="docutils literal notranslate"><span class="pre">RemoteProcess.output()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pyproxy.RemoteProcess.stdin"><code class="docutils literal notranslate"><span class="pre">RemoteProcess.stdin()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="configuration.html" title="previous chapter">Server Configuration</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, James Welchman.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 6.1.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      
+      |
+      <a href="_sources/api-docs.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

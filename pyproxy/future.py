@@ -15,6 +15,9 @@ def future_id():
 
 
 class Future:
+    """
+    PyProxy Client Future
+    """
     def __init__(self, id, inner_fut):
         self._id = id
         self._inner_fut = inner_fut
