@@ -1,4 +1,4 @@
-use super::{Error, RequestMessageHeader, Result};
+use super::{Error, Result};
 
 pub const HEADER_SIZE: usize = 5;
 
@@ -7,7 +7,7 @@ pub struct ClientHello {
     pub stream_token: String,
 }
 
-pub fn read_hello(header: RequestMessageHeader, body: &[u8]) -> Result<ClientHello> {
+pub fn read_hello(body: &[u8]) -> Result<ClientHello> {
     let client_hello = bincode::deserialize(body)?;
     Ok(client_hello)
 }

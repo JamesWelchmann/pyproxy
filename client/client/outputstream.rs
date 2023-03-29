@@ -6,7 +6,7 @@ use mio::{Interest, Registry, Token};
 
 use protocol::outputstream::{MessageHeader, HEADER_SIZE};
 
-use crate::errors::{Error, Result};
+use crate::errors::{Error, Result, fatal_io_error};
 
 pub struct OutputStream {
     stream: TcpStream,
@@ -27,12 +27,13 @@ impl OutputStream {
     }
 
     pub fn read(&mut self, buf: &mut [u8]) -> Result<Vec<PipeOut>> {
-        let bytes_read = self.stream.read(buf)?;
+        let bytes_read = fatal_io_error(
+          "failed to read bytes on outputstream",
+          self.stream.read(buf),
+        )?;
+
         if bytes_read == 0 {
-            Err(io::Error::new(
-                io::ErrorKind::ConnectionAborted,
-                "output stream disconnected",
-            ))?;
+          return Err(Error::OutputStreamClosed);
         }
 
         self.buffer.extend(&buf[..bytes_read]);

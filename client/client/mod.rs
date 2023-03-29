@@ -6,13 +6,12 @@ use std::time;
 
 use mio::net::TcpStream as MioTcpStream;
 use mio::{Events, Interest, Poll, Token};
-use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict};
+use pyo3::types::PyBytes;
 
 use crate::connection::{Connection, PyConnection};
 
-use super::errors::{Error, Result};
+use super::errors::{fatal_io_error, Error, Result};
 
 mod mainstream;
 mod outputstream;
@@ -25,9 +24,6 @@ const POLL_DURATION: time::Duration = time::Duration::from_millis(100);
 enum EvalMsg {
     // Python Source Code
     String(String),
-
-    // Python Pickle Object
-    Pickle(Vec<u8>),
 }
 
 struct EvalCode {
@@ -60,9 +56,9 @@ impl PyProxyClient {
         let (code_send, code_recv) = mpsc::channel();
         let (output_send, output_recv) = mpsc::channel();
 
-        let handle = thread::Builder::new()
-            .name(name.to_owned())
-            .spawn(move || {
+        let handle = fatal_io_error(
+            "PyProxyClient failed to spawn OS thread",
+            thread::Builder::new().name(name.to_owned()).spawn(move || {
                 run_forever(
                     stream,
                     code_recv,
@@ -71,7 +67,8 @@ impl PyProxyClient {
                     stream_token,
                     output_addr,
                 )
-            })?;
+            }),
+        )?;
 
         Ok(Self {
             handle: Some(handle),
@@ -80,38 +77,44 @@ impl PyProxyClient {
         })
     }
 
+    fn check_thread(&mut self) -> Result<()> {
+        let mut closed = false;
+        match self.handle.as_ref() {
+            None => {
+              return Err(Error::ClientThreadDoesNotExist);
+            }
+            Some(handle) => {
+                if handle.is_finished() {
+                  // Thread has finished
+                    closed = true;
+                }
+            }
+        }
+
+        // Thread is still active - check complete
+        if !closed {
+          return Ok(());
+        }
+
+        match self.handle.take().unwrap().join() {
+          Err(err) => Err(Error::ThreadClosed(err)),
+          Ok(res) => match res {
+            Ok(()) => Err(Error::ClientThreadDoesNotExist),
+            // Propogate error to main process
+            Err(e) => Err(e),
+          }
+        }
+    }
+
     pub fn eval_str(
         &mut self,
         id: &str,
         code: &str,
         locs: &PyBytes,
         globs: &PyBytes,
-    ) -> PyResult<()> {
-        let mut closed = false;
-        match self.handle.as_ref() {
-            None => {
-                return Err(PyRuntimeError::new_err(
-                    "eval_str called on closed pyproxy session",
-                ))
-            }
-            Some(handle) => {
-                if handle.is_finished() {
-                    closed = true;
-                }
-            }
-        }
+    ) -> Result<()> {
 
-        if closed {
-            // See above
-            let handle = self.handle.take().unwrap();
-            return match handle.join() {
-                Ok(res) => match res {
-                    Err(e) => Err(PyErr::from(e)),
-                    Ok(()) => Err(PyRuntimeError::new_err("pyproy thread stopped gracefully")),
-                },
-                Err(_) => Err(PyRuntimeError::new_err("pyproy thread crashed")),
-            };
-        }
+      self.check_thread()?;
 
         self.code_send
             .send(EvalCode {
@@ -120,8 +123,7 @@ impl PyProxyClient {
                 locals: Vec::from_iter(locs.as_bytes().iter().map(|b| *b)),
                 globals: Vec::from_iter(globs.as_bytes().iter().map(|b| *b)),
             })
-            // TODO: Custom exception
-            .map_err(|_| PyRuntimeError::new_err("PyProxyClient closed"))
+        .map_err(|_| Error::ThreadClosed(Box::new("failed to send code to background os thread")))
     }
 
     pub fn next_output(&self, py: Python) -> PyResult<Option<(usize, Py<PyBytes>)>> {
@@ -147,7 +149,7 @@ fn run_forever(
     stream: Box<dyn Connection>,
     code_recv: mpsc::Receiver<EvalCode>,
     output_send: mpsc::Sender<outputstream::PipeOut>,
-    session_id: String,
+    _session_id: String,
     stream_token: String,
     output_addr: String,
 ) -> Result<()> {
@@ -155,15 +157,22 @@ fn run_forever(
     let output_stream = connect_output_stream(output_addr, stream_token)?;
     let mut output_stream = outputstream::OutputStream::new(output_stream);
 
-    let mut poll = Poll::new()?;
+    let mut poll = fatal_io_error(
+      "failed to create mio Poll instance",
+      Poll::new(),
+    )?;
     let mut events = Events::with_capacity(4096);
 
     let mut main_stream = mainstream::MainStream::new(stream, RO);
-    poll.registry()
-        .register(&mut main_stream, MAIN_STREAM_TK, RO)?;
+    fatal_io_error(
+      "failed to register mainstream with mio for polling",
+      poll.registry().register(&mut main_stream, MAIN_STREAM_TK, RO),
+    )?;
 
-    poll.registry()
-        .register(&mut output_stream, OUTPUT_STREAM_TK, RO)?;
+    fatal_io_error(
+      "failed to register outputstream with mio for polling",
+      poll.registry().register(&mut output_stream, OUTPUT_STREAM_TK, RO),
+    )?;
 
     let mut buffer = vec![0; 4096];
 
@@ -173,11 +182,7 @@ fn run_forever(
             match code_recv.try_recv() {
                 Ok(msg) => match msg.msg {
                     EvalMsg::String(s) => {
-                        println!("queueing source code");
                         main_stream.queue_source_code(msg.id, s, msg.locals, msg.globals);
-                    }
-                    EvalMsg::Pickle(p) => {
-                        main_stream.queue_pickle(msg.id, p, msg.locals, msg.globals);
                     }
                 },
                 // No code to send
@@ -191,21 +196,34 @@ fn run_forever(
         if main_stream.interest() == RO && main_stream.has_out_data() {
             main_stream.set_interest(Interest::READABLE | Interest::WRITABLE);
             let i = main_stream.interest();
-            poll.registry()
-                .reregister(&mut main_stream, MAIN_STREAM_TK, i)?;
+
+            fatal_io_error(
+              "failed to reregister mainstream RO with mio Poll",
+              poll.registry().reregister(&mut main_stream, MAIN_STREAM_TK, i),
+            )?;
+
         } else if main_stream.interest().is_writable() && !main_stream.has_out_data() {
             main_stream.set_interest(RO);
             let i = main_stream.interest();
-            poll.registry()
-                .reregister(&mut main_stream, MAIN_STREAM_TK, i)?;
+
+            fatal_io_error(
+              "failed to reregister mainstream RW with mio Poll",
+              poll.registry().reregister(&mut main_stream, MAIN_STREAM_TK, i),
+            )?;
         }
 
-        poll.poll(&mut events, Some(POLL_DURATION))?;
+        fatal_io_error(
+          "failed to call mio poll",
+          poll.poll(&mut events, Some(POLL_DURATION)),
+        )?;
 
         for ev in &events {
             if ev.token() == MAIN_STREAM_TK {
                 if ev.is_writable() {
-                    main_stream.write()?;
+                  fatal_io_error(
+                    "failed to write bytes to mainstream session",
+                    main_stream.write(),
+                  )?;
                 }
             } else if ev.token() == OUTPUT_STREAM_TK {
                 for pipe_out in output_stream.read(&mut buffer)? {
@@ -223,10 +241,20 @@ fn connect_output_stream(output_addr: String, stream_token: String) -> Result<Mi
         protocol::outputstream::ClientHello { stream_token },
     );
 
-    let mut stream = StdTcpStream::connect(&output_addr)?;
-    stream.write_all(&msg)?;
-    stream.flush()?;
+    let mut stream = fatal_io_error(
+      "failed to open TCP Stream for output stream",
+      StdTcpStream::connect(&output_addr),
+    )?;
 
-    stream.set_nonblocking(true)?;
+    fatal_io_error(
+      "failed to write client hello on output stream",
+      stream.write_all(&msg).and_then(|_| stream.flush()),
+    )?;
+
+    fatal_io_error(
+      "failed to set output stream TCP Stream to non-blocking",
+      stream.set_nonblocking(true),
+    )?;
+
     Ok(MioTcpStream::from_std(stream))
 }

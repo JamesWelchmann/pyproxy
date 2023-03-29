@@ -66,6 +66,30 @@ not raise it</p>
 
 </dd></dl>
 
+<dl class="py exception">
+<dt class="sig sig-object py" id="pyproxy.PyProxyClosedSessionError">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyproxy.</span></span><span class="sig-name descname"><span class="pre">PyProxyClosedSessionError</span></span><a class="headerlink" href="#pyproxy.PyProxyClosedSessionError" title="Permalink to this definition">¶</a></dt>
+<dd><p>PyPRoxyClosedSessionError is raised when we attempt to perform actions on a PyProxySession which is already disconnected. The most likely reason is you called RemoteProcess.eval on an already closed session.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="pyproxy.PyProxyError">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyproxy.</span></span><span class="sig-name descname"><span class="pre">PyProxyError</span></span><a class="headerlink" href="#pyproxy.PyProxyError" title="Permalink to this definition">¶</a></dt>
+<dd><p>PyProxyError is the base exception of PyProxy Client</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="pyproxy.PyProxyIOError">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyproxy.</span></span><span class="sig-name descname"><span class="pre">PyProxyIOError</span></span><a class="headerlink" href="#pyproxy.PyProxyIOError" title="Permalink to this definition">¶</a></dt>
+<dd><p>PyProxyIOError is raised when I/O fails on either mainstream or outputstream</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="pyproxy.PyProxyProtocolError">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyproxy.</span></span><span class="sig-name descname"><span class="pre">PyProxyProtocolError</span></span><a class="headerlink" href="#pyproxy.PyProxyProtocolError" title="Permalink to this definition">¶</a></dt>
+<dd><p>PyProxyProtocolError is raised when client/server protocol sent invalid bytes/messages.It is used by both mainstream and outputstream</p>
+</dd></dl>
+
 <dl class="py class">
 <dt class="sig sig-object py" id="pyproxy.PyProxySession">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyproxy.</span></span><span class="sig-name descname"><span class="pre">PyProxySession</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">addr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost:9000'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.PyProxySession" title="Permalink to this definition">¶</a></dt>
@@ -145,6 +169,10 @@ Currently we raise NotImplementedError</p>
 <li class="toctree-l3"><a class="reference internal" href="#pyproxy.Future.wait_no_except"><code class="docutils literal notranslate"><span class="pre">Future.wait_no_except()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxyClosedSessionError"><code class="docutils literal notranslate"><span class="pre">PyProxyClosedSessionError</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxyError"><code class="docutils literal notranslate"><span class="pre">PyProxyError</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxyIOError"><code class="docutils literal notranslate"><span class="pre">PyProxyIOError</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxyProtocolError"><code class="docutils literal notranslate"><span class="pre">PyProxyProtocolError</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxySession"><code class="docutils literal notranslate"><span class="pre">PyProxySession</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#pyproxy.PyProxySession.connect"><code class="docutils literal notranslate"><span class="pre">PyProxySession.connect()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#pyproxy.PyProxySession.session_id"><code class="docutils literal notranslate"><span class="pre">PyProxySession.session_id</span></code></a></li>

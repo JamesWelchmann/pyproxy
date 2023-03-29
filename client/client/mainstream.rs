@@ -2,8 +2,6 @@ use std::io::{self, Write};
 
 use mio::event::Source;
 use mio::{Interest, Registry, Token};
-use pyo3::types::PyDict;
-use pyo3::{Py, PyObject};
 
 use crate::connection::Connection;
 
@@ -55,27 +53,10 @@ impl MainStream {
         ));
     }
 
-    pub fn queue_pickle(&mut self, id: String, pickle: Vec<u8>, locals: Vec<u8>, globals: Vec<u8>) {
-        let msg = protocol::CodePickle {
-            future_id: id,
-            pickle,
-            locals,
-            globals,
-        };
-
-        self.outbuffer.extend(&protocol::new_req(
-            protocol::MessageType::CodePickle,
-            0,
-            msg,
-        ));
-    }
-
     pub fn write(&mut self) -> io::Result<()> {
         let bytes_written = self.stream.write(&self.outbuffer)?;
         self.stream.flush()?;
         let bytes_remaining = self.outbuffer.len() - bytes_written;
-
-        println!("wrote {} bytes to main stream", bytes_written);
 
         for n in 0..bytes_remaining {
             self.outbuffer[n] = self.outbuffer[n + bytes_written];

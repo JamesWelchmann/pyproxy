@@ -1,6 +1,5 @@
 use std::io::{self, Read, Write};
 use std::net::TcpStream as StdTcpStream;
-use std::sync::{Arc, Mutex};
 
 use mio::event::Source;
 use mio::net::TcpStream as MioTcpStream;
@@ -12,7 +11,7 @@ use protocol::{
     ResponseMessageHeader,
 };
 
-use super::errors::{Error, Result};
+use super::errors::{fatal_io_error, Error, Result};
 
 // Connections must be mio Source and Readers and Writers
 pub trait Connection: Source + io::Read + io::Write + Send {}
@@ -45,19 +44,29 @@ impl PyConnection {
 
 #[pyfunction]
 pub fn new_simple_connection(addr: &str) -> Result<PyConnection> {
-    let mut stream = StdTcpStream::connect(addr)?;
+    let mut stream = fatal_io_error(
+        "failed to open TCP stream to PyProxy Server",
+        StdTcpStream::connect(addr),
+    )?;
 
     // Send a client hello to server
     let payload = RequestClientHello::new().into_buf();
     let header = RequestMessageHeader::new(MessageType::Hello, 0, payload.len()).into_buf();
 
     // Send client hello to server
-    stream.write_all(&header)?;
-    stream.write_all(&payload)?;
+    fatal_io_error(
+        "failed to write client hello on mainstream to open TCP Stream with PyProxy server",
+        stream
+            .write_all(&header)
+            .and_then(|_| stream.write_all(&payload)),
+    )?;
 
     // Block - waiting for server response
     let mut header_buf = [0; protocol::RESPONSE_HEADER_SIZE];
-    stream.read_exact(&mut header_buf)?;
+    fatal_io_error(
+        "reading failed on mainstream with open TCP Stream to PyProxyServer",
+        stream.read_exact(&mut header_buf),
+    )?;
     let resp_header = ResponseMessageHeader::from_buf(header_buf)?;
     match resp_header.msg_type {
         MessageType::Hello => {}
@@ -66,10 +75,16 @@ pub fn new_simple_connection(addr: &str) -> Result<PyConnection> {
 
     // Okay read the response payload
     let mut buffer = vec![0; resp_header.msg_len()];
-    stream.read_exact(&mut buffer)?;
+    fatal_io_error(
+        "reading failed on mainstream with open TCP Stream to PyProxyServer",
+        stream.read_exact(&mut buffer),
+    )?;
     let server_hello: ResponseClientHello = protocol::read_msg(&buffer)?;
 
-    stream.set_nonblocking(true)?;
+    fatal_io_error(
+        "setting mainstream open socket to non-blocking failed",
+        stream.set_nonblocking(true),
+    )?;
 
     Ok(PyConnection {
         inner: Some(Box::new(SimpleConnection {

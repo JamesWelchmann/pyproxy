@@ -63,6 +63,23 @@ or (Windows):
   cp target/release/libpyproxy_client.dll libpyproxy_client.pyd
 ```
 
+## Test Suites
+
+There are two test suites, unit tests and integration tests.
+
+Unit Tests:
+
+```bash
+  $ cargo test
+```
+
+Integration Tests:
+
+```bash
+  $ PYTHONPATH=$(pwd) python tests
+```
+
+
 ## Documentation
 
 Python Sphinx is required to build the documentation.
@@ -70,7 +87,8 @@ Python Sphinx is required to build the documentation.
 Following this:
 
 ```bash
-  $ sphinx-build -b html doc/source doc/html
+  $ PYTHONPATH=$(pwd) sphinx-build -b html doc/source doc/html
 ```
 
 The documentation should now be avaliable at `doc/html/index.html`.
+

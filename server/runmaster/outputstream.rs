@@ -103,7 +103,7 @@ impl Inner {
 
             let msg_end = header.msg_len() + protocol::REQUEST_HEADER_SIZE;
             let payload = &self.inbuffer[protocol::REQUEST_HEADER_SIZE..msg_end];
-            let msg = protocol::outputstream::read_hello(header, payload)?;
+            let msg = protocol::outputstream::read_hello(payload)?;
 
             self.session_id = Some(msg.stream_token);
         }
