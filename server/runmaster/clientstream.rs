@@ -12,6 +12,7 @@ pub struct ClientStream {
     bytes_read: usize,
 }
 
+#[derive(Debug)]
 pub enum ReadResult {
     Continue,
     Closed,

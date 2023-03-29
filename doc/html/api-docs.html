@@ -90,6 +90,12 @@ not raise it</p>
 <dd><p>PyProxyProtocolError is raised when client/server protocol sent invalid bytes/messages.It is used by both mainstream and outputstream</p>
 </dd></dl>
 
+<dl class="py exception">
+<dt class="sig sig-object py" id="pyproxy.PyProxyRemoteExceptionPickle">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyproxy.</span></span><span class="sig-name descname"><span class="pre">PyProxyRemoteExceptionPickle</span></span><a class="headerlink" href="#pyproxy.PyProxyRemoteExceptionPickle" title="Permalink to this definition">¶</a></dt>
+<dd><p>PyProxyRemoteExceptionPickle is raised when the executed server code raised an exception the embedded data is a pickled exception.</p>
+</dd></dl>
+
 <dl class="py class">
 <dt class="sig sig-object py" id="pyproxy.PyProxySession">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">pyproxy.</span></span><span class="sig-name descname"><span class="pre">PyProxySession</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">addr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost:9000'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.PyProxySession" title="Permalink to this definition">¶</a></dt>
@@ -126,7 +132,7 @@ if code_object is a code_object then we attempt to pickle</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="pyproxy.RemoteProcess.output">
-<span class="sig-name descname"><span class="pre">output</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.RemoteProcess.output" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">output</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">future</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyproxy.RemoteProcess.output" title="Permalink to this definition">¶</a></dt>
 <dd><p>output retrieves stdout and stderr line from the remote process</p>
 </dd></dl>
 
@@ -173,6 +179,7 @@ Currently we raise NotImplementedError</p>
 <li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxyError"><code class="docutils literal notranslate"><span class="pre">PyProxyError</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxyIOError"><code class="docutils literal notranslate"><span class="pre">PyProxyIOError</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxyProtocolError"><code class="docutils literal notranslate"><span class="pre">PyProxyProtocolError</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxyRemoteExceptionPickle"><code class="docutils literal notranslate"><span class="pre">PyProxyRemoteExceptionPickle</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pyproxy.PyProxySession"><code class="docutils literal notranslate"><span class="pre">PyProxySession</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#pyproxy.PyProxySession.connect"><code class="docutils literal notranslate"><span class="pre">PyProxySession.connect()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#pyproxy.PyProxySession.session_id"><code class="docutils literal notranslate"><span class="pre">PyProxySession.session_id</span></code></a></li>

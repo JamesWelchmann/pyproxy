@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::process;
 use std::rc::Rc;
 
 use mio::net::{TcpListener, UnixListener};
 use mio::{unix::pipe, Events, Interest, Poll, Token};
-use ndjsonlogger::error;
+use ndjsonlogger::{error, info};
 
 mod errors;
 pub use errors::{fatal_io_err, Error, Result};
@@ -38,6 +38,21 @@ enum IoAction {
     Stderr(pipeframe::PipeFrame),
     Stdout(pipeframe::PipeFrame),
     WorkerStream(workerstream::WorkerStream),
+}
+
+impl IoAction {
+    fn name(&self) -> &'static str {
+        match self {
+            IoAction::MainListener(_) => "main listener",
+            IoAction::ClientStream(_) => "client stream",
+            IoAction::OutputListener(_) => "output listener",
+            IoAction::OutputStream(_) => "output stream",
+            IoAction::UnixListener(_) => "unix listener",
+            IoAction::Stderr(_) => "stderr",
+            IoAction::Stdout(_) => "stdout",
+            IoAction::WorkerStream(_) => "worker stream",
+        }
+    }
 }
 
 pub fn run_forever(
@@ -141,8 +156,9 @@ pub fn run_forever(
 
     let mut buffer = vec![0; 4096];
     let mut to_remove = Vec::with_capacity(16);
+    let mut to_insert = Vec::with_capacity(16);
     let mut worker_streams = workerstream::WorkerStreams::new();
-    let mut new_requests = Vec::with_capacity(64);
+    let mut new_requests = VecDeque::with_capacity(64);
     let mut output_streams: HashMap<String, outputstream::OutputStream> = HashMap::new();
 
     loop {
@@ -150,10 +166,11 @@ pub fn run_forever(
             io_actions.remove(&tk);
         }
 
-        for (header, fd) in new_requests.drain(..) {
-            // Dispatch this client session to a worker
-            worker_streams.dispatch(header, fd);
+        for (tk, act) in to_insert.drain(..) {
+            io_actions.insert(tk, act);
         }
+
+        worker_streams.dispatch(&mut new_requests);
 
         // Do we need to write to our worker streams?
         for (tk, worker_stream) in worker_streams.iter_mut() {
@@ -221,20 +238,24 @@ pub fn run_forever(
                             .register(&mut client_stream, Token(io_token), RO)
                             .is_ok()
                         {
-                            io_actions
-                                .insert(Token(io_token), IoAction::ClientStream(client_stream));
+                            to_insert
+                                .push((Token(io_token), IoAction::ClientStream(client_stream)));
                         }
 
-                        // Ignore errors
+                        fatal_io_err(
+                            "couldn't reregister main_listener to accept more mainstreams",
+                            poll.registry()
+                                .reregister(main_listener, MAIN_LISTENER_TK, RO),
+                        )?;
 
                         io_token += 1;
                     }
-                    Err(_) => {
+                    Err(e) => {
                         // Ignore the error - just drop the stream
                     }
                 },
                 Some(IoAction::OutputListener(output_listener)) => match output_listener.accept() {
-                    Ok((mut stream, _)) => {
+                    Ok((stream, _)) => {
                         let mut output_stream =
                             outputstream::OutputStream::new(stream, Token(io_token), RO);
                         if poll
@@ -270,14 +291,14 @@ pub fn run_forever(
                             // NOTE: We don't remove it - leave it hanging around
                             // in the io_actions HashMap
                             let new_req = (client_stream.header(), client_stream.raw_fd());
-                            new_requests.push(new_req);
+                            new_requests.push_back(new_req);
                         }
                         clientstream::ReadResult::Error(_) => {
                             // Error reading TcpStream - ignore it
                             poll.registry().deregister(client_stream).unwrap_or(());
                             to_remove.push(ev.token());
                         }
-                    }
+                    };
                 }
                 Some(IoAction::OutputStream(output_stream)) => {
                     if ev.is_readable() {
@@ -293,6 +314,7 @@ pub fn run_forever(
                                 .reregister(output_stream, ev.token(), int)
                                 .is_ok()
                             {
+                                info!("new output stream opened", { session_id = &session_id[..] });
                                 output_streams.insert(session_id, output_stream.clone());
                             }
                         }

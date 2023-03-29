@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 use std::os::fd::RawFd;
 use std::rc::Rc;
@@ -90,16 +91,23 @@ impl WorkerStreams {
         self.streams.push((tk, stream));
     }
 
-    pub fn dispatch(&mut self, header: [u8; protocol::REQUEST_HEADER_SIZE], fd: RawFd) {
+    pub fn dispatch(
+        &mut self,
+        new_requests: &mut VecDeque<([u8; protocol::REQUEST_HEADER_SIZE], RawFd)>,
+    ) {
         if self.streams.is_empty() {
-            warn!("no registered workers to dispatch request to");
+            if !new_requests.is_empty() {
+                warn!("no registered workers to dispatch request to");
+            }
             return;
         }
 
         self.last_send += 1;
         self.last_send %= self.streams.len();
 
-        self.streams[self.last_send].1.dispatch(header, fd);
+        while let Some((header, fd)) = new_requests.pop_front() {
+            self.streams[self.last_send].1.dispatch(header, fd);
+        }
     }
 
     pub fn iter_mut(&mut self) -> std::slice::IterMut<(Token, WorkerStream)> {

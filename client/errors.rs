@@ -1,6 +1,6 @@
+use std::any::Any;
 use std::io;
 use std::result;
-use std::any::Any;
 
 #[derive(Debug)]
 pub struct IoError {
@@ -17,6 +17,9 @@ pub enum Error {
     ClientThreadDoesNotExist,
     ThreadClosed(Box<dyn Any + Send + 'static>),
     OutputStreamClosed,
+    MainStreamClosed,
+    PythonResultError(Vec<u8>),
+    FutureTimeout,
 }
 
 pub type Result<T> = result::Result<T, Error>;

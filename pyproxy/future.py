@@ -1,8 +1,7 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-
+import pickle
 from os import urandom
+
+from pyproxy import PyProxyRemoteExceptionPickle
 
 
 def future_id():
@@ -32,8 +31,10 @@ class Future:
         it will reliably produce the same behaviour
         once done
         """
-        timeout = timeout or 0
-        return self._inner_fut.wait(timeout)
+        try:
+            return self._inner_fut.wait(timeout)
+        except PyProxyRemoteExceptionPickle as exc:
+            raise pickle.loads(exc[0])
 
     def is_done(self):
         """

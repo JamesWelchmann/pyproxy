@@ -100,7 +100,6 @@ impl ClientStream {
             return Err(Error::StreamClosed);
         }
 
-        println!("worker mainstream read {} bytes", bytes_read);
         self.inbuffer.extend(&buf[..bytes_read]);
 
         while self.inbuffer.len() >= protocol::REQUEST_HEADER_SIZE {
@@ -121,7 +120,6 @@ impl ClientStream {
             let msg_body = &self.inbuffer[protocol::REQUEST_HEADER_SIZE..msg_end];
             let msg = protocol::read_req(req_header, msg_body)?;
 
-            println!("pushing new request message");
             self.req_msgs.push_back(msg);
 
             let bytes_remaining = self.inbuffer.len() - msg_end;

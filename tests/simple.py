@@ -4,7 +4,12 @@
 import unittest
 from itertools import cycle
 
-from pyproxy import PyProxySession, PyProxyError
+from pyproxy import PyProxySession
+
+class Connect(unittest.TestCase):
+    def __init__(self, server, test_name):
+        self._server = server
+        super().__init__(test_name)
 
 class SimpleTests(unittest.TestCase):
     def __init__(self, server, test_name):
@@ -27,19 +32,23 @@ class SimpleTests(unittest.TestCase):
 
     def tearDown(self):
         for s in self._py_proxy_sessions:
-            try:
-                s.disconnect()
-            except PyProxyError:
-                pass
+            s.disconnect()
 
     def test_add(self):
         future = next(self._py_proxy_sessions_round_robin).eval("2 + 2")
         self.assertEqual(future.wait(), 4)
 
+    def test_print(self):
+        remote_proc = next(self._py_proxy_sessions_round_robin)
+        future = remote_proc.eval('print("hello world")')
+        output = list(remote_proc.output(future=future))
+        assert output == [(1, 'hello world')]
+
 
 def run(server):
     runner = unittest.TextTestRunner()
     suite = unittest.TestSuite()
+    # suite.addTest(SimpleTests(server, "test_add"))
     suite.addTest(SimpleTests(server, "test_add"))
 
     runner.run(suite)

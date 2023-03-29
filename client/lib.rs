@@ -38,16 +38,37 @@ create_exception!(
     PyProxyClosedSessionError,
     PyProxyError,
     concat!(
-      "PyPRoxyClosedSessionError is raised when we attempt to perform actions ",
-      "on a PyProxySession which is already disconnected. ",
-      "The most likely reason is you called RemoteProcess.eval on an already closed ",
-      "session."
+        "PyPRoxyClosedSessionError is raised when we attempt to perform actions ",
+        "on a PyProxySession which is already disconnected. ",
+        "The most likely reason is you called RemoteProcess.eval on an already closed ",
+        "session."
+    )
+);
+
+create_exception!(
+    "pyproxy_client",
+    PyProxyRemoteExceptionPickle,
+    PyProxyError,
+    concat!(
+        "PyProxyRemoteExceptionPickle is raised when the executed server code raised an exception ",
+        "the embedded data is a pickled exception."
+    )
+);
+
+create_exception!(
+    "pyproxy_client",
+    PyProxyFutureTimeout,
+    PyProxyError,
+    concat!(
+        "PyProxyFutureTimeout is raised when we are blocking waiting for a future to compelte ",
+        "and we reach the timeout limit."
     )
 );
 
 #[pymodule]
 fn pyproxy_client(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<client::PyProxyClient>()?;
+    m.add_class::<client::Future>()?;
     m.add_function(wrap_pyfunction!(new_simple_connection, m)?)?;
 
     m.add("PyProxyError", py.get_type::<PyProxyError>())?;
@@ -59,6 +80,14 @@ fn pyproxy_client(py: Python, m: &PyModule) -> PyResult<()> {
     m.add(
         "PyProxyClosedSessionError",
         py.get_type::<PyProxyClosedSessionError>(),
+    )?;
+    m.add(
+        "PyProxyRemoteExceptionPickle",
+        py.get_type::<PyProxyRemoteExceptionPickle>(),
+    )?;
+    m.add(
+        "PyProxyFutureTimeout",
+        py.get_type::<PyProxyFutureTimeout>(),
     )?;
     Ok(())
 }
@@ -79,13 +108,14 @@ impl From<errors::Error> for PyErr {
             }
             Error::Protocol(proto_err) => PyProxyProtocolError::new_err(proto_err.reason()),
             Error::ClientThreadDoesNotExist => {
-              PyProxyClosedSessionError::new_err("PyProxySession already closed")
+                PyProxyClosedSessionError::new_err("PyProxySession already closed")
             }
-            Error::ThreadClosed(err) => {
-              PyProxyClosedSessionError::new_err(format!("{:?}", err))
-            }
-            Error::OutputStreamClosed => {
-              PyProxyIOError::new_err("output stream closed")
+            Error::ThreadClosed(err) => PyProxyClosedSessionError::new_err(format!("{:?}", err)),
+            Error::OutputStreamClosed => PyProxyIOError::new_err("output stream closed"),
+            Error::MainStreamClosed => PyProxyIOError::new_err("mainstream closed"),
+            Error::PythonResultError(data) => PyProxyRemoteExceptionPickle::new_err(data),
+            Error::FutureTimeout => {
+                PyProxyFutureTimeout::new_err("timed out waiting for future to complete")
             }
         }
     }

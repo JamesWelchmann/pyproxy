@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import pickle
 from functools import partial
+from time import sleep
 
 from pyproxy_client import PyProxyClient, new_simple_connection
 
@@ -52,26 +53,34 @@ class RemoteProcess:
     def __init__(self, client):
         self._client = client
 
-    def output(self, fut=None):
+    def output(self, future=None):
         """
         output retrieves stdout and stderr line from the remote process
         """
 
-        if fut:
-            func = partial(self._client.wait_output, fut.id)
-        else:
-            func = self._client.next_output
+        break_now = True
+        if future:
+            break_now = False
 
         while True:
             # out is a tuple
             # first arg is 1 or 2 (stdout or stderr)
             # second arg is a string for one pipe line
-            out = func()
+            out = self._client.next_output()
             if out:
                 yield out
                 continue
 
-            break
+            if break_now:
+                break
+
+            if future and future.is_done():
+                # break on next loop iteration
+                break_now = True
+
+            if not break_now:
+                # sleep for 100ms then poll again
+                sleep(0.1)
 
     def stdin(self, lines):
         """
@@ -105,3 +114,6 @@ class RemoteProcess:
             raise TypeError("code must be a string")
 
         return Future(id, inner_fut)
+
+    def disconnect(self):
+        self._client.disconnect()

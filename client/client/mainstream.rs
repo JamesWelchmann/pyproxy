@@ -1,14 +1,18 @@
+use std::collections::VecDeque;
 use std::io::{self, Write};
 
 use mio::event::Source;
 use mio::{Interest, Registry, Token};
 
 use crate::connection::Connection;
+use crate::errors::{fatal_io_error, Error, Result};
 
 pub struct MainStream {
     stream: Box<dyn Connection>,
     outbuffer: Vec<u8>,
+    inbuffer: Vec<u8>,
     interest: Interest,
+    resp_msgs: VecDeque<protocol::ResponseMessage>,
 }
 
 impl MainStream {
@@ -16,7 +20,9 @@ impl MainStream {
         Self {
             stream,
             outbuffer: Vec::with_capacity(16384),
+            inbuffer: Vec::with_capacity(4096),
             interest,
+            resp_msgs: VecDeque::with_capacity(128),
         }
     }
 
@@ -30,6 +36,10 @@ impl MainStream {
 
     pub fn has_out_data(&self) -> bool {
         !self.outbuffer.is_empty()
+    }
+
+    pub fn next_resp_msg(&mut self) -> Option<protocol::ResponseMessage> {
+        self.resp_msgs.pop_front()
     }
 
     pub fn queue_source_code(
@@ -63,6 +73,49 @@ impl MainStream {
         }
 
         self.outbuffer.truncate(bytes_remaining);
+        Ok(())
+    }
+
+    pub fn read(&mut self, buf: &mut [u8]) -> Result<()> {
+        let bytes_read =
+            fatal_io_error("couldn't read on mainstream session", self.stream.read(buf))?;
+
+        if bytes_read == 0 {
+            return Err(Error::MainStreamClosed);
+        }
+
+        self.inbuffer.extend(&buf[..bytes_read]);
+
+        while self.inbuffer.len() >= protocol::RESPONSE_HEADER_SIZE {
+            let mut header_raw = [0; protocol::RESPONSE_HEADER_SIZE];
+            for (h, b) in header_raw.iter_mut().zip(self.inbuffer.iter()) {
+                *h = *b;
+            }
+
+            let header = protocol::ResponseMessageHeader::from_buf(header_raw)?;
+            let msg_end = protocol::RESPONSE_HEADER_SIZE + header.msg_len();
+
+            if self.inbuffer.len() < msg_end {
+                break;
+            }
+
+            let body = &self.inbuffer[protocol::RESPONSE_HEADER_SIZE..msg_end];
+            let msg = protocol::read_response(header, body)?;
+            if msg.is_hello() {
+                Err(protocol::Error::UnexpectedMessageType(
+                    protocol::MessageType::Hello,
+                ))?;
+            }
+
+            self.resp_msgs.push_back(msg);
+
+            let bytes_remaining = self.inbuffer.len() - msg_end;
+            for n in 0..bytes_remaining {
+                self.inbuffer[n] = self.inbuffer[n + msg_end];
+            }
+            self.inbuffer.truncate(bytes_remaining);
+        }
+
         Ok(())
     }
 }

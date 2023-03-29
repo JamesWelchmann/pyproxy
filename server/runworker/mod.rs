@@ -162,8 +162,6 @@ pub fn run_forever(
                 continue;
             }
 
-            println!("reading client stream {:?}", ev);
-
             if let Some(client_stream) = client_streams.get_mut(&ev.token()) {
                 if ev.is_readable() {
                     if client_stream.read(&mut buffer).is_err() {
@@ -178,7 +176,6 @@ pub fn run_forever(
                         poll.registry().deregister(client_stream).unwrap_or(());
                         to_remove.push(ev.token());
                     } else {
-                        println!("written to client stream");
                     }
                 }
             }

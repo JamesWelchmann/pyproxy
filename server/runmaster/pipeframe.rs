@@ -47,7 +47,6 @@ impl PipeFrame {
             }
 
             let line = &self.buffer[start..n];
-            //            println!("reading line {:?}", std::str::from_utf8(line));
             self.last_newline = Some(n);
             start = n + 1;
 
@@ -55,7 +54,6 @@ impl PipeFrame {
             if line.len() == new_req_start_len + (SESSION_ID_LENGTH * 2) {
                 if line.starts_with(messages::NEW_REQUEST_START.as_bytes()) {
                     if let Ok(session_id) = std::str::from_utf8(&line[new_req_start_len..]) {
-                        println!("new session id = {}", session_id);
                         self.current_session_id = Some(session_id.to_owned());
                         continue;
                     }
@@ -64,7 +62,6 @@ impl PipeFrame {
 
             // Are we ending a python callable?
             if line == messages::NEW_REQUEST_END.as_bytes() {
-                println!("end session id");
                 self.current_session_id = None;
                 continue;
             }

@@ -12,15 +12,19 @@ pub enum Error {
 }
 
 impl Error {
-  pub fn reason(&self) -> String {
-    match self {
-      Error::WrongVersion(version) => format!("unsupported protocol version {}", version),
-      Error::UnrecognisedMessageType(msg_type) => format!("unrecognised message type {}", msg_type),
-      Error::FailedDeserialze(err) => format!("failed to deserialize message {:?}", err),
-      Error::UnexpectedMessageType(msg_type) => format!("message type invalid here {:?}", msg_type),
-      Error::Deserialize(err) => format!("failed to deserialize message {:?}", err),
+    pub fn reason(&self) -> String {
+        match self {
+            Error::WrongVersion(version) => format!("unsupported protocol version {}", version),
+            Error::UnrecognisedMessageType(msg_type) => {
+                format!("unrecognised message type {}", msg_type)
+            }
+            Error::FailedDeserialze(err) => format!("failed to deserialize message {:?}", err),
+            Error::UnexpectedMessageType(msg_type) => {
+                format!("message type invalid here {:?}", msg_type)
+            }
+            Error::Deserialize(err) => format!("failed to deserialize message {:?}", err),
+        }
     }
-  }
 }
 
 pub type Result<T> = result::Result<T, Error>;

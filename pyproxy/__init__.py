@@ -9,6 +9,7 @@ from pyproxy_client import (
     PyProxyIOError,
     PyProxyProtocolError,
     PyProxyClosedSessionError,
+    PyProxyRemoteExceptionPickle,
 )
 
 
@@ -23,4 +24,5 @@ __all__ = [
     'PyProxyIOError',
     'PyProxyProtocolError',
     'PyProxyClosedSessionError',
+    'PyProxyRemoteExceptionPickle',
 ]

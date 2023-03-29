@@ -102,10 +102,20 @@ impl Inner {
             }
 
             let msg_end = header.msg_len() + protocol::REQUEST_HEADER_SIZE;
+            if self.inbuffer.len() < msg_end {
+                break;
+            }
+
             let payload = &self.inbuffer[protocol::REQUEST_HEADER_SIZE..msg_end];
             let msg = protocol::outputstream::read_hello(payload)?;
 
             self.session_id = Some(msg.stream_token);
+
+            let bytes_remaining = self.inbuffer.len() - msg_end;
+            for n in 0..bytes_remaining {
+                self.inbuffer[n] = self.inbuffer[n + msg_end];
+            }
+            self.inbuffer.truncate(bytes_remaining);
         }
         Ok(())
     }
