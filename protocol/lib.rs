@@ -2,12 +2,12 @@ mod errors;
 pub use errors::{Error, Result};
 mod mainstream;
 pub use mainstream::{CodePickle, CodeString};
-mod outputstream;
-pub use outputstream::CodeExec;
+pub mod outputstream;
 
 pub const VERSION: u8 = 0;
 pub const REQUEST_HEADER_SIZE: usize = 8;
 pub const RESPONSE_HEADER_SIZE: usize = 12;
+pub const SESSION_ID_LENGTH: usize = 16;
 
 // 8 byte message header
 pub struct RequestMessageHeader {
@@ -32,6 +32,16 @@ pub enum RequestMessage {
     Hello(RequestClientHello),
     CodeString(CodeString),
     CodePickle(CodePickle),
+}
+
+impl RequestMessage {
+    pub fn future_id(&self) -> Option<&str> {
+        match self {
+            RequestMessage::Hello(_) => None,
+            RequestMessage::CodeString(s) => Some(&s.future_id),
+            RequestMessage::CodePickle(s) => Some(&s.future_id),
+        }
+    }
 }
 
 pub fn new_req<T: serde::Serialize>(msg_type: MessageType, msg_sub_type: u8, msg: T) -> Vec<u8> {

@@ -36,8 +36,8 @@ impl ClientStream {
         }
 
         // Okay - populate our buffer with
-        let session_id: [u8; 16] = rand::thread_rng().gen();
-        let stream_token: [u8; 32] = rand::thread_rng().gen();
+        let session_id: [u8; protocol::SESSION_ID_LENGTH] = rand::thread_rng().gen();
+        let stream_token = session_id.clone();
 
         let server_hello = bincode::serialize(&protocol::ResponseClientHello {
             session_id: hex::encode(&session_id),
@@ -99,6 +99,8 @@ impl ClientStream {
         if bytes_read == 0 {
             return Err(Error::StreamClosed);
         }
+
+        println!("worker mainstream read {} bytes", bytes_read);
         self.inbuffer.extend(&buf[..bytes_read]);
 
         while self.inbuffer.len() >= protocol::REQUEST_HEADER_SIZE {
@@ -110,14 +112,16 @@ impl ClientStream {
             let req_header = protocol::RequestMessageHeader::from_buf(header)?;
 
             // Do we have enough bytes?
-            if req_header.msg_len() + protocol::REQUEST_HEADER_SIZE < self.inbuffer.len() {
+            if req_header.msg_len() + protocol::REQUEST_HEADER_SIZE > self.inbuffer.len() {
                 break;
             }
 
             let msg_end = req_header.msg_len() + protocol::REQUEST_HEADER_SIZE;
 
-            let msg_body = &self.inbuffer[(protocol::REQUEST_HEADER_SIZE..msg_end)];
+            let msg_body = &self.inbuffer[protocol::REQUEST_HEADER_SIZE..msg_end];
             let msg = protocol::read_req(req_header, msg_body)?;
+
+            println!("pushing new request message");
             self.req_msgs.push_back(msg);
 
             let bytes_remaining = self.inbuffer.len() - msg_end;
@@ -135,6 +139,10 @@ impl ClientStream {
 
     pub fn next_req_msg(&mut self) -> Option<protocol::RequestMessage> {
         self.req_msgs.pop_front()
+    }
+
+    pub fn session_id(&self) -> &str {
+        &self.session_id[..]
     }
 }
 

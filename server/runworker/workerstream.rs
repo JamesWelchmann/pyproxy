@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 use std::os::fd::RawFd;
 use std::sync::{Arc, Mutex};
@@ -7,10 +7,8 @@ use fd_queue::mio::UnixStream;
 use fd_queue::DequeueFd;
 use mio::event::Source;
 use mio::{Interest, Registry, Token};
-use ndjsonloggercore::{Atom as LogAtom, Entry as LogEntry, Value as LogValue};
-use serde_json::Value as JValue;
 
-use crate::messages::{self, LogLevel, LogMessage};
+use crate::messages::{self, LogLevel, LogMessage, PrintMessage};
 
 #[derive(Clone)]
 pub struct WorkerStream {
@@ -27,7 +25,8 @@ impl WorkerStream {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 stream,
-                buffer: Vec::with_capacity(4096),
+                inbuffer: Vec::with_capacity(4096),
+                outbuffer: Vec::with_capacity(4096),
                 new_msgs: VecDeque::with_capacity(64),
             })),
         }
@@ -40,7 +39,7 @@ impl WorkerStream {
     }
 
     pub fn has_data(&self) -> bool {
-        !self.inner.lock().unwrap().buffer.is_empty()
+        !self.inner.lock().unwrap().outbuffer.is_empty()
     }
 
     pub fn read(&self, buffer: &mut [u8]) -> io::Result<()> {
@@ -57,26 +56,21 @@ impl WorkerStream {
 }
 
 impl Logger {
-    pub fn error(&self, msg: &str, tags: Vec<(&'static str, JValue)>) {
+    pub fn error(&self, msg: &str, tags: Vec<(&'static str, messages::LogValue)>) {
         self.log(LogLevel::Error, msg, tags);
     }
 
-    pub fn info(&self, msg: &str, tags: Vec<(&'static str, JValue)>) {
+    pub fn info(&self, msg: &str, tags: Vec<(&'static str, messages::LogValue)>) {
         self.log(LogLevel::Info, msg, tags);
     }
 
-    fn log(&self, level: LogLevel, msg: &str, log_tags: Vec<(&'static str, JValue)>) {
-        let mut tags = HashMap::with_capacity(log_tags.len());
-        for (k, v) in log_tags.into_iter() {
-            tags.insert(k.to_owned(), v);
-        }
-
+    fn log(&self, level: LogLevel, msg: &str, tags: Vec<(&'static str, messages::LogValue)>) {
         let ts = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true);
         let msg = bincode::serialize(&LogMessage {
             level,
             ts,
             msg: msg.to_owned(),
-            tags,
+            tags: tags.into_iter().map(|(k, v)| (k.to_owned(), v)).collect(),
         })
         .unwrap();
 
@@ -84,53 +78,71 @@ impl Logger {
         let msg_type = messages::LOG_MESSAGE;
         self.inner.lock().unwrap().new_msg(msg_type, msg_len, &msg);
     }
+
+    pub fn print(&self, message: String) {
+        let msg =
+            bincode::serialize(&PrintMessage { message }).expect("couldn't serialize PrintMessage");
+        let msg_len = (msg.len() as u32).to_be_bytes();
+        self.inner
+            .lock()
+            .unwrap()
+            .new_msg(messages::PRINT_MESSAGE, msg_len, &msg);
+    }
 }
 
 struct Inner {
     stream: UnixStream,
-    buffer: Vec<u8>,
+    inbuffer: Vec<u8>,
+    outbuffer: Vec<u8>,
     new_msgs: VecDeque<([u8; protocol::REQUEST_HEADER_SIZE], RawFd)>,
 }
 
 impl Inner {
     fn new_msg(&mut self, msg_type: u8, msg_len: [u8; 4], msg: &[u8]) {
-        self.buffer.push(msg_type);
-        self.buffer.extend(&msg_len);
-        self.buffer.extend(msg);
+        self.outbuffer.push(msg_type);
+        self.outbuffer.extend(&msg_len);
+        self.outbuffer.extend(msg);
     }
 
     fn read(&mut self, buf: &mut [u8]) -> io::Result<()> {
         let bytes_read = self.stream.read(buf)?;
-        self.buffer.extend(&buf[..bytes_read]);
+        if bytes_read == 0 {
+            Err(io::Error::new(
+                io::ErrorKind::ConnectionAborted,
+                "worker stream closed",
+            ))?;
+        }
+        self.inbuffer.extend(&buf[..bytes_read]);
 
-        while self.buffer.len() >= protocol::REQUEST_HEADER_SIZE {
+        while self.inbuffer.len() >= protocol::REQUEST_HEADER_SIZE {
             if let Some(fd) = self.stream.dequeue() {
                 let mut header = [0; protocol::REQUEST_HEADER_SIZE];
-                for (h, b) in header.iter_mut().zip(self.buffer.iter()) {
+                for (h, b) in header.iter_mut().zip(self.inbuffer.iter()) {
                     *h = *b;
                 }
 
                 self.new_msgs.push_back((header, fd));
 
-                let bytes_remaining = self.buffer.len() - protocol::REQUEST_HEADER_SIZE;
+                let bytes_remaining = self.inbuffer.len() - protocol::REQUEST_HEADER_SIZE;
                 for n in 0..bytes_remaining {
-                    self.buffer[n] = self.buffer[n + 12];
+                    self.inbuffer[n] = self.inbuffer[n + protocol::REQUEST_HEADER_SIZE];
                 }
-                self.buffer.truncate(bytes_remaining);
+                self.inbuffer.truncate(bytes_remaining);
             }
+            break;
         }
 
         Ok(())
     }
 
     fn write(&mut self) -> io::Result<()> {
-        let bytes_written = self.stream.write(&self.buffer)?;
-        let bytes_remaining = self.buffer.len() - bytes_written;
+        let bytes_written = self.stream.write(&self.outbuffer)?;
+        let bytes_remaining = self.outbuffer.len() - bytes_written;
 
         for n in 0..bytes_remaining {
-            self.buffer[n] = self.buffer[n + bytes_written];
+            self.outbuffer[n] = self.outbuffer[n + bytes_written];
         }
-        self.buffer.truncate(bytes_remaining);
+        self.outbuffer.truncate(bytes_remaining);
         Ok(())
     }
 }

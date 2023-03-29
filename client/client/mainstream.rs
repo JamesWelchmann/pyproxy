@@ -75,6 +75,8 @@ impl MainStream {
         self.stream.flush()?;
         let bytes_remaining = self.outbuffer.len() - bytes_written;
 
+        println!("wrote {} bytes to main stream", bytes_written);
+
         for n in 0..bytes_remaining {
             self.outbuffer[n] = self.outbuffer[n + bytes_written];
         }

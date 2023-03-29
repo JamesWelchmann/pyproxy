@@ -12,6 +12,7 @@ pub use errors::{fatal_io_err, Error, Result};
 pub mod config;
 use config::Config;
 mod clientstream;
+mod outputstream;
 mod pipeframe;
 mod workerstream;
 
@@ -27,10 +28,12 @@ const UNIX_LISTENER_TK: Token = Token(2);
 const TOKEN_START: usize = 3;
 const RO: Interest = Interest::READABLE;
 
+#[derive(Debug)]
 enum IoAction {
     MainListener(TcpListener),
-    OutputListener(TcpListener),
     ClientStream(clientstream::ClientStream),
+    OutputListener(TcpListener),
+    OutputStream(outputstream::OutputStream),
     UnixListener(UnixListener),
     Stderr(pipeframe::PipeFrame),
     Stdout(pipeframe::PipeFrame),
@@ -140,6 +143,7 @@ pub fn run_forever(
     let mut to_remove = Vec::with_capacity(16);
     let mut worker_streams = workerstream::WorkerStreams::new();
     let mut new_requests = Vec::with_capacity(64);
+    let mut output_streams: HashMap<String, outputstream::OutputStream> = HashMap::new();
 
     loop {
         for tk in to_remove.drain(..) {
@@ -172,13 +176,39 @@ pub fn run_forever(
             }
         }
 
+        for (_, output_stream) in output_streams.iter_mut() {
+            if output_stream.interest() == RO && output_stream.has_out_data() {
+                let int = Interest::READABLE | Interest::WRITABLE;
+                output_stream.set_interest(int);
+                if poll
+                    .registry()
+                    .reregister(output_stream, output_stream.token, int)
+                    .is_err()
+                {
+                    poll.registry().deregister(output_stream).unwrap_or(());
+                    to_remove.push(output_stream.token);
+                }
+            }
+
+            if output_stream.interest().is_writable() && !output_stream.has_out_data() {
+                output_stream.set_interest(RO);
+                if poll
+                    .registry()
+                    .reregister(output_stream, output_stream.token, RO)
+                    .is_err()
+                {
+                    poll.registry().deregister(output_stream).unwrap_or(());
+                    to_remove.push(output_stream.token);
+                }
+            }
+        }
+
         fatal_io_err(
             "master failed to poll mio for events",
             poll.poll(&mut events, None),
         )?;
 
         for ev in &events {
-            println!("event = {:?}", ev.token());
             match io_actions.get_mut(&ev.token()) {
                 None => {
                     error!("master didn't find token in io_actions map");
@@ -205,12 +235,15 @@ pub fn run_forever(
                 },
                 Some(IoAction::OutputListener(output_listener)) => match output_listener.accept() {
                     Ok((mut stream, _)) => {
+                        let mut output_stream =
+                            outputstream::OutputStream::new(stream, Token(io_token), RO);
                         if poll
                             .registry()
-                            .register(&mut stream, Token(io_token), RO)
+                            .register(&mut output_stream, Token(io_token), RO)
                             .is_ok()
                         {
-                            // TODO: Register output stream
+                            io_actions
+                                .insert(Token(io_token), IoAction::OutputStream(output_stream));
                         }
 
                         // Ignore errors
@@ -246,6 +279,32 @@ pub fn run_forever(
                         }
                     }
                 }
+                Some(IoAction::OutputStream(output_stream)) => {
+                    if ev.is_readable() {
+                        if output_stream.read(&mut buffer).is_err() {
+                            poll.registry().deregister(output_stream).unwrap_or(());
+                            to_remove.push(ev.token());
+                        }
+
+                        if let Some(session_id) = output_stream.take_session_id() {
+                            let int = Interest::READABLE | Interest::WRITABLE;
+                            if poll
+                                .registry()
+                                .reregister(output_stream, ev.token(), int)
+                                .is_ok()
+                            {
+                                output_streams.insert(session_id, output_stream.clone());
+                            }
+                        }
+                    }
+
+                    if ev.is_writable() {
+                        if output_stream.write().is_err() {
+                            poll.registry().deregister(output_stream).unwrap_or(());
+                            to_remove.push(ev.token());
+                        }
+                    }
+                }
                 Some(IoAction::UnixListener(unix_listener)) => match unix_listener.accept() {
                     Err(io_err) => {
                         error!("master unix listener received error on worker connect", {
@@ -271,43 +330,69 @@ pub fn run_forever(
                 },
                 Some(IoAction::WorkerStream(worker_stream)) => {
                     if ev.is_readable() {
-                        // TODO
+                        if worker_stream.read(&mut buffer).is_err() {
+                            // Drop stream
+                            poll.registry().deregister(worker_stream).unwrap_or(());
+                            to_remove.push(ev.token());
+                        }
                     }
 
                     if ev.is_writable() {
                         if let Err(err) = worker_stream.write() {
                             error!("failed to write to worker stream", {
-                                error = &format!("{}", err)
+                                error = &format!("{:?}", err)
                             });
                         }
                     }
                 }
-                Some(IoAction::Stdout(pipeframe)) => match pipeframe.read(&mut buffer) {
-                    Err(err) => {
-                        error!("broken pipe with worker stdout", {
-                            error = &format!("{}", err)
-                        });
+                Some(IoAction::Stdout(pipe_frame)) => {
+                    match pipe_frame.read(&mut buffer, io::stdout()) {
+                        Err(io_err) => {
+                            error!("broken pipe with worker stdout", {
+                                error = &format!("{}", io_err)
+                            });
+                            poll.registry().deregister(pipe_frame).unwrap_or(());
+                            to_remove.push(ev.token());
+                        }
+                        Ok(None) => {
+                            // No complete lines
+                            continue;
+                        }
+                        Ok(Some((session_id, lines))) => {
+                            if let Some(output_stream) = output_streams.get_mut(session_id) {
+                                for line in lines {
+                                    output_stream.send_stdout(line);
+                                }
+                            }
 
-                        poll.registry().deregister(pipeframe).unwrap_or(());
-                        to_remove.push(ev.token());
+                            pipe_frame.clear();
+                        }
                     }
-                    Ok(_) => {
-                        pipeframe.write(io::stdout());
-                    }
-                },
-                Some(IoAction::Stderr(pipeframe)) => match pipeframe.read(&mut buffer) {
-                    Err(err) => {
-                        error!("broken pipe with worker stderr", {
-                            error = &format!("{}", err)
-                        });
+                }
+                Some(IoAction::Stderr(pipe_frame)) => {
+                    match pipe_frame.read(&mut buffer, io::stderr()) {
+                        Err(io_err) => {
+                            error!("broken pipe with worker stderr", {
+                                error = &format!("{}", io_err)
+                            });
+                            poll.registry().deregister(pipe_frame).unwrap_or(());
+                            to_remove.push(ev.token());
+                        }
+                        Ok(None) => {
+                            // No complete lines
+                            continue;
+                        }
+                        Ok(Some((session_id, lines))) => {
+                            if let Some(output_stream) = output_streams.get_mut(session_id) {
+                                for line in lines {
+                                    output_stream.send_stderr(line);
+                                }
+                            }
 
-                        poll.registry().deregister(pipeframe).unwrap_or(());
-                        to_remove.push(ev.token());
+                            pipe_frame.clear();
+                        }
                     }
-                    Ok(_) => {
-                        pipeframe.write(io::stderr());
-                    }
-                },
+                }
             }
         }
     }

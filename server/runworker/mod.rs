@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 use std::os::fd::FromRawFd;
-use std::process;
 use std::sync::Arc;
+use std::time;
 
 use fd_queue::mio::UnixStream;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Poll, Token};
-use serde_json::Value as JValue;
+use ndjsonlogger::info;
 
-use protocol::RequestMessage;
+use crate::messages::LogValue;
 
 mod errors;
-pub use errors::{Error, Result};
+pub use errors::{fatal_io_err, Error, Result};
 mod clientstream;
 pub mod config;
 mod pythread;
@@ -20,41 +20,33 @@ mod workerstream;
 const RO: Interest = Interest::READABLE;
 const WORKER_STREAM_TK: Token = Token(0);
 const TOKEN_START: usize = 1;
+const POLL_TIME: time::Duration = time::Duration::from_millis(100);
 
 pub fn run_forever(
     cfg: Arc<config::Config>,
     unix_stream: std::os::unix::net::UnixStream,
 ) -> Result<()> {
-    if unix_stream.set_nonblocking(true).is_err() {
-        process::exit(1);
-    }
+    info!("worker started");
+
+    fatal_io_err(
+        "worker couldn't set unix stream to non-blocking",
+        unix_stream.set_nonblocking(true),
+    )?;
 
     let unix_stream = UnixStream::from_std(unix_stream);
     let mut worker_stream = workerstream::WorkerStream::new(unix_stream);
     let logger = worker_stream.new_logger();
-    let (thread_sender, _) = match pythread::start() {
-        Ok(s) => s,
-        Err(e) => {
-            process::exit(1);
-        }
-    };
+    let (thread_sender, _) = pythread::start(logger.clone())?;
 
-    let mut poll = match Poll::new() {
-        Ok(poll) => poll,
-        Err(_) => {
-            process::exit(1);
-        }
-    };
+    let mut poll = fatal_io_err("worker couldn't create mio poll instance", Poll::new())?;
 
     let mut ws_interest = RO;
 
-    if poll
-        .registry()
-        .register(&mut worker_stream, WORKER_STREAM_TK, ws_interest)
-        .is_err()
-    {
-        process::exit(1);
-    }
+    fatal_io_err(
+        "worker couldn't register unix stream with mio poll",
+        poll.registry()
+            .register(&mut worker_stream, WORKER_STREAM_TK, ws_interest),
+    )?;
 
     let mut events = Events::with_capacity(1024);
     let mut buffer = vec![0; 4096];
@@ -81,7 +73,13 @@ pub fn run_forever(
                 .register(&mut client_stream, Token(token_io), RO)
                 .is_ok()
             {
-                println!("got new client stream {:?}", Token(token_io));
+                logger.info(
+                    "new client mainstream started",
+                    vec![(
+                        "session_id",
+                        LogValue::String(client_stream.session_id().to_owned()),
+                    )],
+                );
                 client_streams.insert(Token(token_io), client_stream);
             }
 
@@ -91,30 +89,40 @@ pub fn run_forever(
         // Reregister our worker stream RO/RW as needed
         if ws_interest == RO && worker_stream.has_data() {
             ws_interest = Interest::READABLE | Interest::WRITABLE;
-            if poll
-                .registry()
-                .reregister(&mut worker_stream, WORKER_STREAM_TK, ws_interest)
-                .is_err()
-            {
-                process::exit(1);
-            }
+            fatal_io_err(
+                "worker couldn't register unix stream RO",
+                poll.registry()
+                    .reregister(&mut worker_stream, WORKER_STREAM_TK, ws_interest),
+            )?;
         } else if ws_interest.is_writable() && !worker_stream.has_data() {
             ws_interest = RO;
-            if poll
-                .registry()
-                .reregister(&mut worker_stream, WORKER_STREAM_TK, ws_interest)
-                .is_err()
-            {
-                process::exit(1);
-            }
+            fatal_io_err(
+                "worker couldn't register unix stream RW",
+                poll.registry()
+                    .reregister(&mut worker_stream, WORKER_STREAM_TK, ws_interest),
+            )?;
         }
 
         // Take any request messages from TcpStreams
         for (tk, client_stream) in client_streams.iter_mut() {
             while let Some(req_msg) = client_stream.next_req_msg() {
-                thread_sender.send(req_msg);
+                logger.info(
+                    "queueing new pyproxy atom processing",
+                    vec![
+                        (
+                            "session_id",
+                            LogValue::String(client_stream.session_id().to_owned()),
+                        ),
+                        (
+                            "future_id",
+                            LogValue::String(req_msg.future_id().unwrap_or("0000").to_owned()),
+                        ),
+                    ],
+                );
+                thread_sender.send((client_stream.session_id().to_owned(), req_msg));
             }
 
+            // Reregister client stream RO or RW
             if client_stream.interest() == RO && client_stream.has_out_data() {
                 let i = Interest::READABLE | Interest::WRITABLE;
                 client_stream.set_interest(i);
@@ -129,40 +137,39 @@ pub fn run_forever(
             }
         }
 
-        // Reregister our TcpStreams as appropriate
-
-        if let Err(_) = poll.poll(&mut events, None) {
-            process::exit(1);
-        }
-
-        println!("poll wakeup");
+        fatal_io_err(
+            "worker couldn't call mio poll",
+            poll.poll(&mut events, None),
+        )?;
 
         for ev in &events {
             if ev.token() == WORKER_STREAM_TK {
                 if ev.is_readable() {
                     // Read the message
-                    worker_stream.read(&mut buffer);
+                    fatal_io_err(
+                        "worker failed to read worker stream",
+                        worker_stream.read(&mut buffer),
+                    )?;
                 }
 
                 if ev.is_writable() {
-                    // Write to unix socket
-                    worker_stream.write();
+                    fatal_io_err(
+                        "worker failed to write on worker stream",
+                        worker_stream.write(),
+                    )?;
                 }
 
                 continue;
             }
 
-            println!("client stream token = {:?}", ev.token());
+            println!("reading client stream {:?}", ev);
 
             if let Some(client_stream) = client_streams.get_mut(&ev.token()) {
-                println!("found client stream");
                 if ev.is_readable() {
-                    println!("reading from client stream");
                     if client_stream.read(&mut buffer).is_err() {
                         poll.registry().deregister(client_stream).unwrap_or(());
                         to_remove.push(ev.token());
                     }
-                    println!("client stream read");
                 }
 
                 if ev.is_writable() {
@@ -171,11 +178,10 @@ pub fn run_forever(
                         poll.registry().deregister(client_stream).unwrap_or(());
                         to_remove.push(ev.token());
                     } else {
+                        println!("written to client stream");
                     }
                 }
             }
         }
     }
-
-    Ok(())
 }

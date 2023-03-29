@@ -5,6 +5,7 @@ use mio::event::Source;
 use mio::net::TcpStream;
 use mio::{Interest, Registry, Token};
 
+#[derive(Debug)]
 pub struct ClientStream {
     stream: TcpStream,
     buffer: [u8; protocol::REQUEST_HEADER_SIZE],

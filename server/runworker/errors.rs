@@ -35,3 +35,7 @@ impl From<protocol::Error> for Error {
 pub fn io_error(action: &'static str, error: io::Error) -> Error {
     Error::Io(IoError { action, error })
 }
+
+pub fn fatal_io_err<T>(action: &'static str, io_res: io::Result<T>) -> Result<T> {
+    io_res.map_err(|e| io_error(action, e))
+}

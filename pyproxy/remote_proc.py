@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import pickle
+from functools import partial
 
 from pyproxy_client import PyProxyClient, new_simple_connection
 
@@ -14,6 +15,10 @@ class PyProxySession:
         # block - waitint for client conenction
         # raise exception if we fail
         self._client_conn = new_simple_connection(addr)
+
+    @property
+    def session_id(self):
+        return self._client_conn.session_id
 
     def __enter__(self):
         return self.connect()
@@ -35,31 +40,21 @@ class RemoteProcess:
         output retrieves stdout and stderr line from the remote process
         """
 
-        if fut is None:
-            break_now = True
-        elif isinstance(fut, Future):
-            break_now = False
+        if fut:
+            func = partial(self._client.wait_output, fut.id)
         else:
-            raise TypeError("output method expected None or Future as first argument")
+            func = self._client.next_output
 
         while True:
-            while True:
-                # out is a tuple
-                # first arg is 1 or 2 (stdout or stderr)
-                # second arg is a string for one pipe line
-                out = self._client.next_output()
-                if out:
-                    yield out
-                    continue
+            # out is a tuple
+            # first arg is 1 or 2 (stdout or stderr)
+            # second arg is a string for one pipe line
+            out = func()
+            if out:
+                yield out
+                continue
 
-                break
-
-            if break_now:
-                break
-
-            if fut and fut.is_done():
-                # loop once more, then break
-                break_now = True
+            break
 
     def stdin(self, lines):
         """

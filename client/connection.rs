@@ -35,6 +35,14 @@ pub struct PyConnection {
     pub output_addr: String,
 }
 
+#[pymethods]
+impl PyConnection {
+    #[getter]
+    pub fn session_id(&self) -> &str {
+        &self.session_id[..]
+    }
+}
+
 #[pyfunction]
 pub fn new_simple_connection(addr: &str) -> Result<PyConnection> {
     let mut stream = StdTcpStream::connect(addr)?;
@@ -46,7 +54,6 @@ pub fn new_simple_connection(addr: &str) -> Result<PyConnection> {
     // Send client hello to server
     stream.write_all(&header)?;
     stream.write_all(&payload)?;
-    println!("send client hello");
 
     // Block - waiting for server response
     let mut header_buf = [0; protocol::RESPONSE_HEADER_SIZE];
@@ -60,7 +67,6 @@ pub fn new_simple_connection(addr: &str) -> Result<PyConnection> {
     // Okay read the response payload
     let mut buffer = vec![0; resp_header.msg_len()];
     stream.read_exact(&mut buffer)?;
-    println!("got server hello");
     let server_hello: ResponseClientHello = protocol::read_msg(&buffer)?;
 
     stream.set_nonblocking(true)?;

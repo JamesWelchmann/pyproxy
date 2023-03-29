@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::net::TcpStream as StdTcpStream;
 use std::sync::mpsc;
 use std::thread;
@@ -40,6 +41,7 @@ struct EvalCode {
 pub struct PyProxyClient {
     handle: Option<thread::JoinHandle<Result<()>>>,
     code_send: mpsc::Sender<EvalCode>,
+    output_recv: mpsc::Receiver<outputstream::PipeOut>,
 }
 
 #[pymethods]
@@ -56,14 +58,25 @@ impl PyProxyClient {
         let output_addr = conn.output_addr.to_owned();
 
         let (code_send, code_recv) = mpsc::channel();
+        let (output_send, output_recv) = mpsc::channel();
 
         let handle = thread::Builder::new()
             .name(name.to_owned())
-            .spawn(move || run_forever(stream, code_recv, session_id, stream_token, output_addr))?;
+            .spawn(move || {
+                run_forever(
+                    stream,
+                    code_recv,
+                    output_send,
+                    session_id,
+                    stream_token,
+                    output_addr,
+                )
+            })?;
 
         Ok(Self {
             handle: Some(handle),
             code_send,
+            output_recv,
         })
     }
 
@@ -84,7 +97,6 @@ impl PyProxyClient {
             Some(handle) => {
                 if handle.is_finished() {
                     closed = true;
-                    println!("closed = true");
                 }
             }
         }
@@ -92,20 +104,14 @@ impl PyProxyClient {
         if closed {
             // See above
             let handle = self.handle.take().unwrap();
-            println!("handle = {:?}", handle);
             return match handle.join() {
                 Ok(res) => match res {
                     Err(e) => Err(PyErr::from(e)),
                     Ok(()) => Err(PyRuntimeError::new_err("pyproy thread stopped gracefully")),
                 },
-                Err(_) => {
-                    println!("handle error");
-                    Err(PyRuntimeError::new_err("pyproy thread crashed"))
-                }
+                Err(_) => Err(PyRuntimeError::new_err("pyproy thread crashed")),
             };
         }
-
-        println!("code going to server {}", code);
 
         self.code_send
             .send(EvalCode {
@@ -117,28 +123,40 @@ impl PyProxyClient {
             // TODO: Custom exception
             .map_err(|_| PyRuntimeError::new_err("PyProxyClient closed"))
     }
+
+    pub fn next_output(&self, py: Python) -> PyResult<Option<(usize, Py<PyBytes>)>> {
+        match self.output_recv.try_recv() {
+            Ok(pipe_frame) => {
+                let fd = match pipe_frame.fd {
+                    protocol::outputstream::MessageType::Stdout => 1,
+                    protocol::outputstream::MessageType::Stderr => 2,
+                };
+                let bytes = PyBytes::new(py, &pipe_frame.line).into_py(py);
+                Ok(Some((fd, bytes)))
+            }
+            Err(mpsc::TryRecvError::Empty) => Ok(None),
+            Err(mpsc::TryRecvError::Disconnected) => {
+                // TODO: Raise an exception to show session closed
+                Ok(None)
+            }
+        }
+    }
 }
 
 fn run_forever(
     stream: Box<dyn Connection>,
     code_recv: mpsc::Receiver<EvalCode>,
+    output_send: mpsc::Sender<outputstream::PipeOut>,
     session_id: String,
     stream_token: String,
     output_addr: String,
 ) -> Result<()> {
-    println!("run_forever started");
-
     // Connect to logging stream
-    let output_stream = StdTcpStream::connect(&output_addr)?;
-    output_stream.set_nonblocking(true)?;
-    let mut output_stream = MioTcpStream::from_std(output_stream);
-
-    println!("got output stream");
+    let output_stream = connect_output_stream(output_addr, stream_token)?;
+    let mut output_stream = outputstream::OutputStream::new(output_stream);
 
     let mut poll = Poll::new()?;
     let mut events = Events::with_capacity(4096);
-
-    println!("created poll");
 
     let mut main_stream = mainstream::MainStream::new(stream, RO);
     poll.registry()
@@ -147,7 +165,7 @@ fn run_forever(
     poll.registry()
         .register(&mut output_stream, OUTPUT_STREAM_TK, RO)?;
 
-    println!("pyproxy thread started");
+    let mut buffer = vec![0; 4096];
 
     loop {
         // Do we have any new code to send?
@@ -155,7 +173,7 @@ fn run_forever(
             match code_recv.try_recv() {
                 Ok(msg) => match msg.msg {
                     EvalMsg::String(s) => {
-                        println!("thread got code {}", s);
+                        println!("queueing source code");
                         main_stream.queue_source_code(msg.id, s, msg.locals, msg.globals);
                     }
                     EvalMsg::Pickle(p) => {
@@ -168,9 +186,6 @@ fn run_forever(
                 Err(mpsc::TryRecvError::Disconnected) => return Ok(()),
             }
         }
-
-        println!("mainstream.interest = {:?}", main_stream.interest());
-        println!("mainstream.has_out_data = {:?}", main_stream.has_out_data());
 
         // Do we need to reregister our mainstream?
         if main_stream.interest() == RO && main_stream.has_out_data() {
@@ -190,11 +205,28 @@ fn run_forever(
         for ev in &events {
             if ev.token() == MAIN_STREAM_TK {
                 if ev.is_writable() {
-                    println!("thread writing source code");
                     main_stream.write()?;
                 }
             } else if ev.token() == OUTPUT_STREAM_TK {
+                for pipe_out in output_stream.read(&mut buffer)? {
+                    output_send.send(pipe_out).unwrap_or(());
+                }
             }
         }
     }
+}
+
+fn connect_output_stream(output_addr: String, stream_token: String) -> Result<MioTcpStream> {
+    let msg = protocol::new_req(
+        protocol::MessageType::Hello,
+        0,
+        protocol::outputstream::ClientHello { stream_token },
+    );
+
+    let mut stream = StdTcpStream::connect(&output_addr)?;
+    stream.write_all(&msg)?;
+    stream.flush()?;
+
+    stream.set_nonblocking(true)?;
+    Ok(MioTcpStream::from_std(stream))
 }

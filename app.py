@@ -12,9 +12,18 @@ from pyproxy import PyProxySession
 session = PyProxySession()
 print("created session")
 remote_proc = session.connect()
-print("created remote proc")
-remote_proc.eval(open("my_code.py").read())
+print(f"created remote proc, [session_id={session.session_id}]")
+fut = remote_proc.eval(open("my_code.py").read())
+"""
+for (fd, line) in remote_proc.output(fut):
+    if fd == 1:
+        print(line)
+    elif fd == 2:
+        eprint(line)
+    else:
+        raise RuntimeError(f"unrecognised file descriptor {fd}")
 
+"""
 sleep(10)
 
 
